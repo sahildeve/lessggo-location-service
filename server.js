@@ -1,25 +1,45 @@
-import dotenv from "dotenv";
-dotenv.config();
-
+import "dotenv/config";
+import http from "http";
 import app from "./app.js";
 import connectDB from "./src/config/db.js";
-import redis from "./src/config/redis.js";
+import initSocket from "./src/socket.js";
 import logger from "./src/utils/logger.js";
 
-const PORT = process.env.PORT || 5004;
+const PORT = process.env.PORT || 3002;
 
-const startServer = async () => {
+const start = async () => {
   try {
     await connectDB();
-    await redis.connect();
 
-    app.listen(PORT, () => {
-      logger.info(`Location Service running on port ${PORT}`);
+    // HTTP server  — Socket.io ke liye zaroori hai
+    const httpServer = http.createServer(app);
+
+    // Socket.io initialize karo
+    const io = initSocket(httpServer);
+
+    httpServer.listen(PORT, () => {
+      logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      logger.info(`  Location Service running on port ${PORT}`);
+      logger.info(`  Mode : ${process.env.NODE_ENV}`);
+      logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     });
-  } catch (error) {
-    logger.error(error.message);
+  } catch (err) {
+    logger.error("Server startup error:", {
+      message: err.message,
+      stack: err.stack,
+    });
     process.exit(1);
   }
 };
 
-startServer();
+start();
+
+process.on("unhandledRejection", (err) => {
+  logger.error("Unhandled Rejection:", err.message);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught Exception:", err.message);
+  process.exit(1);
+});

@@ -1,28 +1,45 @@
+import "dotenv/config";
 import express from "express";
+import helmet from "helmet";
 import cors from "cors";
-import swaggerUi from "swagger-ui-express";
-import swaggerSpec from "./src/config/swagger.js";
+import morgan from "morgan";
+import cookieParser from "cookie-parser";
 import locationRoutes from "./src/routes/location.routes.js";
-
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ─── Security Middlewares
+app.use(helmet());
+app.set("trust proxy", 1);
 app.use(
-  "/api-docs",
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec)
+  cors({
+    origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
+    credentials: true,
+  }),
 );
 
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Location Service Running",
-  });
+// ─── Body Parsers
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
+
+// ─── Logging
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+
+// ─── Routes
+app.use("/api/location", locationRoutes);
+
+// ─── Health Check
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", service: "location-service" });
 });
 
-app.use("/api/location", locationRoutes);
+// ─── Global Error Handler
+app.use((err, _req, res, _next) => {
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal server error",
+  });
+});
 
 export default app;
