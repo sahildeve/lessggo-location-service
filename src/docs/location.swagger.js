@@ -50,9 +50,9 @@ export const locationSwaggerDocs = {
     },
   },
 
-  "/api/location/ride/create": {
+  "/api/location/ride/offer": {
     post: {
-      summary: "Create a new ride",
+      summary: "Offer a ride — user apni car me jagah deta hai",
       tags: ["Ride"],
       security: [{ bearerAuth: [] }],
       requestBody: {
@@ -61,32 +61,53 @@ export const locationSwaggerDocs = {
           "application/json": {
             schema: {
               type: "object",
-              required: ["pickupLocationId", "dropoffLocationId"],
+              required: [
+                "fromAddress",
+                "fromCity",
+                "fromLat",
+                "fromLng",
+                "toAddress",
+                "toCity",
+                "toLat",
+                "toLng",
+                "departureTime",
+                "availableSeats",
+                "pricePerSeat",
+              ],
               properties: {
-                pickupLocationId: {
+                fromAddress: {
                   type: "string",
-                  example: "6a1fb71391ca3b940980581a",
+                  example: "Connaught Place, Delhi",
                 },
-                dropoffLocationId: {
+                fromCity: { type: "string", example: "Delhi" },
+                fromLat: { type: "number", example: 28.6315 },
+                fromLng: { type: "number", example: 77.2167 },
+                toAddress: { type: "string", example: "Sector 18, Noida" },
+                toCity: { type: "string", example: "Noida" },
+                toLat: { type: "number", example: 28.5705 },
+                toLng: { type: "number", example: 77.3219 },
+                departureTime: {
                   type: "string",
-                  example: "6a1fb71391ca3b940980581b",
+                  example: "2026-06-10T10:00:00.000Z",
                 },
+                availableSeats: { type: "integer", example: 2 },
+                pricePerSeat: { type: "number", example: 150 },
               },
             },
           },
         },
       },
       responses: {
-        201: { description: "Ride created successfully" },
+        201: { description: "Ride offered successfully" },
         401: { description: "Unauthorized" },
         422: { description: "Validation failed" },
       },
     },
   },
 
-  "/api/location/ride/join": {
+  "/api/location/ride/search": {
     post: {
-      summary: "Join an existing ride",
+      summary: "Search matching rides — algorithm se match karta hai",
       tags: ["Ride"],
       security: [{ bearerAuth: [] }],
       requestBody: {
@@ -95,16 +116,21 @@ export const locationSwaggerDocs = {
           "application/json": {
             schema: {
               type: "object",
-              required: ["rideId", "pickupLocationId", "dropoffLocationId"],
+              required: [
+                "fromLat",
+                "fromLng",
+                "toLat",
+                "toLng",
+                "departureTime",
+              ],
               properties: {
-                rideId: { type: "string", example: "6a1fb71391ca3b940980581a" },
-                pickupLocationId: {
+                fromLat: { type: "number", example: 28.6315 },
+                fromLng: { type: "number", example: 77.2167 },
+                toLat: { type: "number", example: 28.5705 },
+                toLng: { type: "number", example: 77.3219 },
+                departureTime: {
                   type: "string",
-                  example: "6a1fb71391ca3b940980581b",
-                },
-                dropoffLocationId: {
-                  type: "string",
-                  example: "6a1fb71391ca3b940980581c",
+                  example: "2026-06-10T10:00:00.000Z",
                 },
               },
             },
@@ -112,10 +138,93 @@ export const locationSwaggerDocs = {
         },
       },
       responses: {
-        200: { description: "Joined ride successfully" },
-        400: { description: "Ride is full or not available" },
+        200: { description: "Matching rides found" },
         401: { description: "Unauthorized" },
         422: { description: "Validation failed" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/request": {
+    post: {
+      summary: "Request to join a ride",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581a" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["pickupAddress", "pickupLat", "pickupLng"],
+              properties: {
+                pickupAddress: {
+                  type: "string",
+                  example: "Rajiv Chowk Metro, Delhi",
+                },
+                pickupLat: { type: "number", example: 28.6328 },
+                pickupLng: { type: "number", example: 77.2197 },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: "Ride request sent successfully" },
+        400: { description: "Already requested or ride full" },
+        401: { description: "Unauthorized" },
+        404: { description: "Ride not found" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/respond": {
+    patch: {
+      summary: "Accept or reject a ride request",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581a" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["riderId", "action"],
+              properties: {
+                riderId: {
+                  type: "string",
+                  example: "6a1fb71391ca3b940980581b",
+                },
+                action: {
+                  type: "string",
+                  enum: ["accepted", "rejected"],
+                  example: "accepted",
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: "Rider accepted/rejected successfully" },
+        403: { description: "Only ride owner can respond" },
+        404: { description: "Ride or rider not found" },
       },
     },
   },
@@ -143,7 +252,7 @@ export const locationSwaggerDocs = {
 
   "/api/location/ride/cab-location": {
     patch: {
-      summary: "Update cab live location",
+      summary: "Update cab live location (real-time)",
       tags: ["Ride"],
       security: [{ bearerAuth: [] }],
       requestBody: {
@@ -171,14 +280,13 @@ export const locationSwaggerDocs = {
   },
 };
 
-// Socket.io events documentation
 export const socketDocs = {
   events: {
     emit: [
       {
         name: "join_ride",
         data: "rideId (string)",
-        description: "Join a ride room for real-time tracking",
+        description: "Join ride room for real-time tracking",
       },
       {
         name: "update_my_location",
@@ -193,19 +301,19 @@ export const socketDocs = {
       {
         name: "leave_ride",
         data: "rideId (string)",
-        description: "Leave a ride room",
+        description: "Leave ride room",
       },
     ],
     on: [
       {
         name: "user_joined",
         data: "{ userId, username }",
-        description: "New user joined the ride",
+        description: "New user joined",
       },
       {
         name: "user_location_updated",
         data: "{ userId, username, lat, lng }",
-        description: "A user location updated",
+        description: "User location updated",
       },
       {
         name: "cab_location_updated",
@@ -215,7 +323,7 @@ export const socketDocs = {
       {
         name: "user_left",
         data: "{ userId, username }",
-        description: "A user left the ride",
+        description: "User left the ride",
       },
       { name: "error", data: "{ message }", description: "Error occurred" },
     ],

@@ -1,0 +1,43 @@
+Step 1 — Login:
+User app open karta hai, Auth Service pe login karta hai, accessToken milta hai jo har request me use hoga.
+Step 2 — Location save:
+User map pe pickup aur dropoff pin lagata hai. Frontend Google Maps se coordinates leke Location Service ko bhejta hai. Do locationId milte hain.
+Step 3 — Ride create/join:
+Pehla user ride create karta hai, rideId milta hai. Baaki 2-3 users same rideId se join karte hain. Ab ek "room" ban gayi.
+Step 4 — Real-time tracking:
+Sab users Socket.io se connect hote hain us rideId ke room me. Cab har 3-5 second me location bhejti hai. Sab room members ko cab_location_updated event milta hai. Frontend map pe car animate karta hai.
+JWT token ka role:
+Ek hi token Auth Service banta hai — Location Service bhi same secret se verify karta hai. Koi alag connection nahi dono services ke beech. 🎯
+
+
+
+
+
+concept 
+
+1. Offer Ride (Driver mode)
+   "Main ja raha hoon Delhi → Noida 2 seats available hain"
+
+2. Find Ride (Rider mode)  
+   "Mujhe jaana hai Delhi → Noida koi chal raha hai kya?"
+
+
+Algorithm kuch aisa hoga:
+
+User A offer karta hai:
+  from: Delhi (lat/lng)
+  to: Noida (lat/lng)
+  seats: 2
+  time: 10:00 AM
+        ↓
+User B dhundta hai:
+  from: Connaught Place (Delhi me hi)
+  to: Sector 18 Noida (Noida me hi)
+  time: 10:00 AM
+        ↓
+Algorithm check karta hai:
+  1. Route overlap hai?     ✅
+  2. Time match hai?        ✅
+  3. Seats available hain?  ✅
+        ↓
+Match! Dono ko suggest karta hai

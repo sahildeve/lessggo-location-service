@@ -1,36 +1,41 @@
-import { Router } from "express";
-import { protect } from "../middlewares/auth.middleware.js";
+import { Router } from 'express';
+import { protect } from '../middlewares/auth.middleware.js';
 import {
   validate,
   saveLocationSchema,
-  createRideSchema,
-  joinRideSchema,
+  offerRideSchema,
+  searchRideSchema,
+  requestRideSchema,
+  respondToRequestSchema,
   updateCabLocationSchema,
-} from "../validators/location.validator.js";
+} from '../validators/location.validator.js';
 import {
   saveLocation,
   getUserLocations,
-  createRide,
-  joinRide,
+  offerRide,
+  searchRides,
+  requestRide,
+  respondToRequest,
   getRide,
   updateCabLocation,
-} from "../controllers/location.controller.js";
+} from '../controllers/location.controller.js';
 
 const router = Router();
 
-// ─── Location Routes
-router.post("/save", protect, validate(saveLocationSchema), saveLocation);
-router.get("/", protect, getUserLocations);
+// ─── Location Routes 
+router.post('/save', protect, validate(saveLocationSchema), saveLocation);
+router.get('/',      protect,                               getUserLocations);
 
-// ─── Ride Routes
-router.post("/ride/create", protect, validate(createRideSchema), createRide);
-router.post("/ride/join", protect, validate(joinRideSchema), joinRide);
-router.get("/ride/:rideId", protect, getRide);
-router.patch(
-  "/ride/cab-location",
-  protect,
-  validate(updateCabLocationSchema),
-  updateCabLocation,
-);
+// ─── Ride Offer & Search 
+router.post('/ride/offer',  protect, validate(offerRideSchema),  offerRide);
+router.post('/ride/search', protect, validate(searchRideSchema), searchRides);
+
+// ─── Ride Request 
+router.post('/ride/:rideId/request',  protect, validate(requestRideSchema),       requestRide);
+router.patch('/ride/:rideId/respond', protect, validate(respondToRequestSchema),  respondToRequest);
+
+// ─── Ride Details & Tracking 
+router.get('/ride/:rideId',           protect,                                    getRide);
+router.patch('/ride/cab-location',    protect, validate(updateCabLocationSchema), updateCabLocation);
 
 export default router;
