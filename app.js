@@ -1,33 +1,34 @@
 import "dotenv/config";
 import express from "express";
-import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from "./src/config/swagger.js";
 import locationRoutes from "./src/routes/location.routes.js";
 
 const app = express();
 
-// ─── Security Middlewares
-app.use(helmet());
 app.set("trust proxy", 1);
 app.use(
   cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
+    origin: true,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 
-// ─── Body Parsers
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-
-// ─── Logging
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 // ─── Routes
 app.use("/api/location", locationRoutes);
+
+// ─── Swagger Docs
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // ─── Health Check
 app.get("/health", (_req, res) => {
