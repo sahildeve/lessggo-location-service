@@ -30,7 +30,7 @@ export const offerRide = async (req, res) => {
     const ride = await locationService.offerRide(
       req.user.sub,
       req.user.username,
-      req.body
+      req.body        // ← ye pass ho raha hai?
     );
     return success(res, { ride }, 'Ride offered successfully', 201);
   } catch (err) {
@@ -104,6 +104,17 @@ export const updateCabLocation = async (req, res) => {
     return success(res, { ride }, 'Cab location updated');
   } catch (err) {
     logger.error('Update cab location error:', { message: err.message, stack: err.stack });
+    return error(res, err.message, err.status || 500);
+  }
+};
+
+export const endRide = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const ride = await locationService.endRide(rideId, req.user.sub);
+    return success(res, { ride }, 'Ride ended successfully');
+  } catch (err) {
+    logger.error('End ride error:', { message: err.message, stack: err.stack });
     return error(res, err.message, err.status || 500);
   }
 };

@@ -1,5 +1,6 @@
 import Location from "../models/Location.js";
 import Ride from "../models/Ride.js";
+import redis from "../config/redis.js"; 
 import logger from "../utils/logger.js";
 
 // ─── Save Pickup/Dropoff Location
@@ -61,6 +62,10 @@ export const offerRide = async (
     availableSeats,
     pricePerSeat,
   });
+
+  await redis.sadd(`ride_members:${ride._id}`, userId);
+  await redis.expire(`ride_members:${ride._id}`, 86400 * 7); // 7 days
+
   return ride;
 };
 
@@ -209,9 +214,14 @@ export const respondToRequest = async (
     throw err;
   }
 
-  rider.status = action; // 'accepted' or 'rejected'
+  rider.status = action;
 
-  // Check karo seats full hue ya nahi
+  // ── Agar accept hua toh Redis me add karo ─────────────────────
+  if (action === "accepted") {
+    await redis.sadd(`ride_members:${rideId}`, riderId);
+    await redis.expire(`ride_members:${rideId}`, 86400 * 7);
+  }
+
   const acceptedCount = ride.riders.filter(
     (r) => r.status === "accepted",
   ).length;
@@ -270,4 +280,29 @@ export const saveUserLiveLocation = async (userId, rideId, lat, lng) => {
     { upsert: true, new: true },
   );
   return location;
+};
+
+// ─── End Ride
+export const endRide = async (rideId, userId) => {
+  const ride = await Ride.findById(rideId);
+
+  if (!ride) {
+    const err = new Error("Ride not found");
+    err.status = 404;
+    throw err;
+  }
+  if (ride.offeredBy.userId.toString() !== userId) {
+    const err = new Error("Only ride owner can end the ride");
+    err.status = 403;
+    throw err;
+  }
+
+  ride.status = "completed";
+  ride.completedAt = new Date();
+  await ride.save();
+
+  // Redis se members delete karo
+  await redis.del(`ride_members:${rideId}`);
+
+  return ride;
 };

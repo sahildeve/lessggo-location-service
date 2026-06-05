@@ -18,6 +18,7 @@ import {
   respondToRequest,
   getRide,
   updateCabLocation,
+  endRide,
 } from '../controllers/location.controller.js';
 
 const router = Router();
@@ -38,4 +39,5 @@ router.patch('/ride/:rideId/respond', protect, validate(respondToRequestSchema),
 router.get('/ride/:rideId',           protect,                                    getRide);
 router.patch('/ride/cab-location',    protect, validate(updateCabLocationSchema), updateCabLocation);
 
+router.patch('/ride/:rideId/end', protect, endRide);
 export default router;
