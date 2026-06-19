@@ -376,6 +376,7 @@ export const findInterestedUsers = async ({
 
   // Step 3: Sirf zaroori info return karo
   return matched.map((s) => ({
+    _id: s._id,        // ← ye add karo
     userId: s.userId,
     username: s.username,
     searchedRoute: { from: s.from.address, to: s.to.address },
