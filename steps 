@@ -190,3 +190,19 @@ Summary — Frontend ko ye batao: 🎯
 
  Wahi coordinates Google Maps markers
  me use karo"
+
+
+
+
+ BlaBlaCar me:
+
+User A → Ride offer karta hai (Delhi → Noida)
+        ↓
+User B, C, D → "Delhi se Noida" search karte hain
+              (lekin abhi koi ride join nahi
+               karte, sirf dekh rahe hain)
+        ↓
+User A (ride owner) dekhna chahta hai:
+"Kitne log mera route search kar rahe hain?"
+"Shayad zyada demand hai, dusra trip bhi
+ offer kar du"

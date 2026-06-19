@@ -1,7 +1,8 @@
 import Location from "../models/Location.js";
 import Ride from "../models/Ride.js";
-import redis from "../config/redis.js"; 
+import redis from "../config/redis.js";
 import logger from "../utils/logger.js";
+import SearchRequest from '../models/SearchRequest.js';
 
 // ─── Save Pickup/Dropoff Location
 export const saveLocation = async (
@@ -48,7 +49,7 @@ export const offerRide = async (
   },
 ) => {
   const ride = await Ride.create({
-    offeredBy: { userId, username: fullName || username, },
+    offeredBy: { userId, username: fullName || username },
     from: {
       address: fromAddress,
       city: fromCity,
@@ -67,13 +68,26 @@ export const offerRide = async (
   await redis.sadd(`ride_members:${ride._id}`, userId);
   await redis.expire(`ride_members:${ride._id}`, 86400 * 7); // 7 days
 
-  return ride;
+  // ── Interested users dhundo jinhone ye route search kiya tha
+  const interestedUsers = await findInterestedUsers({
+    fromLat,
+    fromLng,
+    toLat,
+    toLng,
+    departureTime,
+  });
+
+  return { ride, interestedUsers };
 };
 
 // ─── Search Rides (Algorithm)
 export const searchRides = async ({
+  userId,
+  username,
+  fromAddress,
   fromLat,
   fromLng,
+  toAddress,
   toLat,
   toLng,
   departureTime,
@@ -121,6 +135,21 @@ export const searchRides = async ({
     // Simple direction check — rider ka destination ride ke destination ke paas hai?
     const distance = getDistanceKm(toLat, toLng, rideToLat, rideToLng);
     return distance <= 10; // 10km ke andar destination
+  });
+
+  // ── Step 4: Search ko save karo — taaki future me ride offer hone pe match ho sake ──
+  await SearchRequest.create({
+    userId,
+    username,
+    from: {
+      address: fromAddress,
+      coordinates: { type: "Point", coordinates: [fromLng, fromLat] },
+    },
+    to: {
+      address: toAddress,
+      coordinates: { type: "Point", coordinates: [toLng, toLat] },
+    },
+    departureTime,
   });
 
   return matched;
@@ -307,4 +336,78 @@ export const endRide = async (rideId, userId) => {
   await redis.del(`ride_members:${rideId}`);
 
   return ride;
+};
+
+// ─── Find Interested Users (jinhone is route ko search kiya tha)
+export const findInterestedUsers = async ({
+  fromLat,
+  fromLng,
+  toLat,
+  toLng,
+  departureTime,
+}) => {
+  const RADIUS_METERS = 5000;
+
+  const timeFrom = new Date(
+    new Date(departureTime).getTime() - 2 * 60 * 60 * 1000,
+  );
+  const timeTo = new Date(
+    new Date(departureTime).getTime() + 2 * 60 * 60 * 1000,
+  );
+
+  // Step 1: Geospatial query — pickup ke paas search requests dhundo
+  const searches = await SearchRequest.find({
+    departureTime: { $gte: timeFrom, $lte: timeTo },
+    "from.coordinates": {
+      $near: {
+        $geometry: { type: "Point", coordinates: [fromLng, fromLat] },
+        $maxDistance: RADIUS_METERS,
+      },
+    },
+  }).lean();
+
+  // Step 2: Destination bhi match karna chahiye
+  const matched = searches.filter((s) => {
+    const sToLng = s.to.coordinates.coordinates[0];
+    const sToLat = s.to.coordinates.coordinates[1];
+    const distance = getDistanceKm(toLat, toLng, sToLat, sToLng);
+    return distance <= 10;
+  });
+
+  // Step 3: Sirf zaroori info return karo
+  return matched.map((s) => ({
+    userId: s.userId,
+    username: s.username,
+    searchedRoute: { from: s.from.address, to: s.to.address },
+    searchedAt: s.createdAt,
+  }));
+};
+
+
+// ─── Get Interested Users for an existing ride (owner only)
+export const getInterestedUsersForRide = async (rideId, userId) => {
+  const ride = await Ride.findById(rideId).lean();
+
+  if (!ride) {
+    const err = new Error('Ride not found');
+    err.status = 404;
+    throw err;
+  }
+  if (ride.offeredBy.userId.toString() !== userId) {
+    const err = new Error('Only ride owner can view interested users');
+    err.status = 403;
+    throw err;
+  }
+
+  const fromLat = ride.from.coordinates.coordinates[1];
+  const fromLng = ride.from.coordinates.coordinates[0];
+  const toLat   = ride.to.coordinates.coordinates[1];
+  const toLng   = ride.to.coordinates.coordinates[0];
+
+  const interestedUsers = await findInterestedUsers({
+    fromLat, fromLng, toLat, toLng,
+    departureTime: ride.departureTime,
+  });
+
+  return { interestedUsers, count: interestedUsers.length };
 };

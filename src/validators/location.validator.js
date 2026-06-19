@@ -28,10 +28,12 @@ export const offerRideSchema = Joi.object({
 });
 
 export const searchRideSchema = Joi.object({
-  fromLat: Joi.number().min(-90).max(90).required(),
-  fromLng: Joi.number().min(-180).max(180).required(),
-  toLat: Joi.number().min(-90).max(90).required(),
-  toLng: Joi.number().min(-180).max(180).required(),
+  fromAddress:   Joi.string().required(),
+  fromLat:       Joi.number().min(-90).max(90).required(),
+  fromLng:       Joi.number().min(-180).max(180).required(),
+  toAddress:     Joi.string().required(),
+  toLat:         Joi.number().min(-90).max(90).required(),
+  toLng:         Joi.number().min(-180).max(180).required(),
   departureTime: Joi.date().iso().required(),
 });
 
