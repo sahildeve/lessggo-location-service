@@ -50,6 +50,7 @@ export const locationSwaggerDocs = {
     },
   },
 
+  // updated
   "/api/location/ride/offer": {
     post: {
       summary: "Offer a ride — user apni car me jagah deta hai",
@@ -88,7 +89,7 @@ export const locationSwaggerDocs = {
                 toLng: { type: "number", example: 77.3219 },
                 departureTime: {
                   type: "string",
-                  example: "2026-06-10T10:00:00.000Z",
+                  example: "2026-06-20T10:00:00.000Z",
                 },
                 availableSeats: { type: "integer", example: 2 },
                 pricePerSeat: { type: "number", example: 150 },
@@ -98,16 +99,112 @@ export const locationSwaggerDocs = {
         },
       },
       responses: {
-        201: { description: "Ride offered successfully" },
+        201: {
+          description: "Ride offered successfully",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: { type: "boolean", example: true },
+                  data: {
+                    type: "object",
+                    properties: {
+                      ride: {
+                        type: "object",
+                        properties: {
+                          _id: {
+                            type: "string",
+                            example: "6a34aa15f585c7dfc43336a4",
+                          },
+                          offeredBy: {
+                            type: "object",
+                            properties: {
+                              username: {
+                                type: "string",
+                                example: "Sandeep Saarthi",
+                              },
+                            },
+                          },
+                          from: {
+                            type: "object",
+                            properties: {
+                              address: {
+                                type: "string",
+                                example: "Connaught Place, Delhi",
+                              },
+                              city: { type: "string", example: "Delhi" },
+                            },
+                          },
+                          to: {
+                            type: "object",
+                            properties: {
+                              address: {
+                                type: "string",
+                                example: "Sector 18, Noida",
+                              },
+                              city: { type: "string", example: "Noida" },
+                            },
+                          },
+                          departureTime: {
+                            type: "string",
+                            example: "2026-06-20T10:00:00.000Z",
+                          },
+                          availableSeats: { type: "integer", example: 2 },
+                          pricePerSeat: { type: "number", example: 150 },
+                          status: { type: "string", example: "active" },
+                        },
+                      },
+                      interestedUsers: {
+                        type: "array",
+                        description: "Users who already searched this route",
+                        items: {
+                          type: "object",
+                          properties: {
+                            userId: { type: "string", example: "6a34a9c5..." },
+                            username: {
+                              type: "string",
+                              example: "Rahul Sharma",
+                            },
+                            searchedRoute: {
+                              type: "object",
+                              properties: {
+                                from: {
+                                  type: "string",
+                                  example: "Connaught Place, Delhi",
+                                },
+                                to: {
+                                  type: "string",
+                                  example: "Sector 18, Noida",
+                                },
+                              },
+                            },
+                            searchedAt: {
+                              type: "string",
+                              example: "2026-06-19T07:04:57.846Z",
+                            },
+                          },
+                        },
+                      },
+                      interestedCount: { type: "integer", example: 2 },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         401: { description: "Unauthorized" },
         422: { description: "Validation failed" },
       },
     },
   },
 
+  // updated
   "/api/location/ride/search": {
     post: {
-      summary: "Search matching rides — algorithm se match karta hai",
+      summary:
+        "Search matching rides — algorithm se match karta hai + search saved for demand signal",
       tags: ["Ride"],
       security: [{ bearerAuth: [] }],
       requestBody: {
@@ -130,15 +227,22 @@ export const locationSwaggerDocs = {
                 toLng: { type: "number", example: 77.3219 },
                 departureTime: {
                   type: "string",
-                  example: "2026-06-10T10:00:00.000Z",
+                  example: "2026-06-20T10:00:00.000Z",
                 },
+                fromAddress: {
+                  type: "string",
+                  example: "Connaught Place, Delhi",
+                }, // ← new
+                toAddress: { type: "string", example: "Sector 18, Noida" }, // ← new
               },
             },
           },
         },
       },
       responses: {
-        200: { description: "Matching rides found" },
+        200: {
+          description: "Matching rides found + search saved for demand signal",
+        },
         401: { description: "Unauthorized" },
         422: { description: "Validation failed" },
       },
@@ -275,6 +379,286 @@ export const locationSwaggerDocs = {
         200: { description: "Cab location updated" },
         401: { description: "Unauthorized" },
         404: { description: "Ride not found" },
+      },
+    },
+  },
+
+  // existing entries ke baad add karo
+
+  "/api/location/ride/my-rides": {
+    get: {
+      summary: "Get all rides offered by current user (Driver)",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      responses: {
+        200: {
+          description: "Your offered rides fetched successfully",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: { type: "boolean", example: true },
+                  data: {
+                    type: "object",
+                    properties: {
+                      rides: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            _id: {
+                              type: "string",
+                              example: "6a34aa15f585c7dfc43336a4",
+                            },
+                            offeredBy: {
+                              type: "object",
+                              properties: {
+                                username: {
+                                  type: "string",
+                                  example: "Sandeep Saarthi",
+                                },
+                              },
+                            },
+                            from: {
+                              type: "object",
+                              properties: {
+                                address: {
+                                  type: "string",
+                                  example: "Connaught Place, Delhi",
+                                },
+                                city: { type: "string", example: "Delhi" },
+                              },
+                            },
+                            to: {
+                              type: "object",
+                              properties: {
+                                address: {
+                                  type: "string",
+                                  example: "Sector 18, Noida",
+                                },
+                                city: { type: "string", example: "Noida" },
+                              },
+                            },
+                            departureTime: {
+                              type: "string",
+                              example: "2026-06-20T10:00:00.000Z",
+                            },
+                            availableSeats: { type: "integer", example: 2 },
+                            pricePerSeat: { type: "number", example: 150 },
+                            status: {
+                              type: "string",
+                              enum: [
+                                "active",
+                                "full",
+                                "ongoing",
+                                "completed",
+                                "cancelled",
+                              ],
+                              example: "active",
+                            },
+                          },
+                        },
+                      },
+                      count: { type: "integer", example: 3 },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        401: { description: "Unauthorized" },
+      },
+    },
+  },
+
+  "/api/location/ride/my-requests": {
+    get: {
+      summary:
+        "Get all rides where current user has sent a join request (Rider)",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      responses: {
+        200: {
+          description: "Your ride requests fetched successfully",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: { type: "boolean", example: true },
+                  data: {
+                    type: "object",
+                    properties: {
+                      rides: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            _id: {
+                              type: "string",
+                              example: "6a34aa15f585c7dfc43336a4",
+                            },
+                            offeredBy: {
+                              type: "object",
+                              properties: {
+                                username: {
+                                  type: "string",
+                                  example: "Sandeep Saarthi",
+                                },
+                              },
+                            },
+                            from: {
+                              type: "object",
+                              properties: {
+                                address: {
+                                  type: "string",
+                                  example: "Connaught Place, Delhi",
+                                },
+                              },
+                            },
+                            to: {
+                              type: "object",
+                              properties: {
+                                address: {
+                                  type: "string",
+                                  example: "Sector 18, Noida",
+                                },
+                              },
+                            },
+                            status: { type: "string", example: "active" },
+                            riders: {
+                              type: "array",
+                              items: {
+                                type: "object",
+                                properties: {
+                                  userId: {
+                                    type: "string",
+                                    example: "6a34a9c5...",
+                                  },
+                                  username: {
+                                    type: "string",
+                                    example: "Rahul Sharma",
+                                  },
+                                  status: {
+                                    type: "string",
+                                    enum: ["pending", "accepted", "rejected"],
+                                    example: "pending",
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                      count: { type: "integer", example: 2 },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        401: { description: "Unauthorized" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/interested-users": {
+    get: {
+      summary:
+        "Get users who searched this route — demand signal for ride owner",
+      description:
+        "Only ride owner can access. Shows users who searched the same route after ride was offered.",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a34aa15f585c7dfc43336a4" },
+        },
+      ],
+      responses: {
+        200: {
+          description: "Interested users fetched successfully",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: { type: "boolean", example: true },
+                  data: {
+                    type: "object",
+                    properties: {
+                      interestedUsers: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            userId: {
+                              type: "string",
+                              example: "6a34a9c58bd7555188343ba7",
+                            },
+                            username: {
+                              type: "string",
+                              example: "Rahul Sharma",
+                            },
+                            searchedRoute: {
+                              type: "object",
+                              properties: {
+                                from: {
+                                  type: "string",
+                                  example: "Connaught Place, Delhi",
+                                },
+                                to: {
+                                  type: "string",
+                                  example: "Sector 18, Noida",
+                                },
+                              },
+                            },
+                            searchedAt: {
+                              type: "string",
+                              example: "2026-06-19T07:04:57.846Z",
+                            },
+                          },
+                        },
+                      },
+                      count: { type: "integer", example: 2 },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        403: { description: "Only ride owner can view interested users" },
+        404: { description: "Ride not found" },
+        401: { description: "Unauthorized" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/end": {
+    patch: {
+      summary: "End a ride — only ride owner can end",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a34aa15f585c7dfc43336a4" },
+        },
+      ],
+      responses: {
+        200: { description: "Ride ended successfully" },
+        403: { description: "Only ride owner can end the ride" },
+        404: { description: "Ride not found" },
+        401: { description: "Unauthorized" },
       },
     },
   },

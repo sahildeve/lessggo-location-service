@@ -177,6 +177,7 @@ rides.forEach(ride => {
 });
 
 
+
 Summary — Frontend ko ye batao: 🎯
 "Search API pehle se bana hua hai —
  POST /api/location/ride/search pe
@@ -206,3 +207,36 @@ User A (ride owner) dekhna chahta hai:
 "Kitne log mera route search kar rahe hain?"
 "Shayad zyada demand hai, dusra trip bhi
  offer kar du"
+
+
+
+
+ new features
+ "Sir feature ready hai —
+
+ 1. Jab koi user route search karta hai
+    (ride dhundta hai), uska search
+    backend me save ho jaata hai
+    (24 hours ke liye).
+
+ 2. Jab koi naya user same route pe
+    ride OFFER karta hai, do cheezein
+    hoti hain:
+
+    a) Turant response me dikh jaata hai
+       'kitne log is route pe interested
+        hain' (offer karte hi)
+
+    b) Owner baad me bhi check kar sakta
+       hai — naya API hai:
+       GET /ride/:rideId/interested-users
+       jo dikhata hai kitne aur log
+       us route pe search kar rahe hain
+
+ 3. Privacy maintain hai — sirf username
+    aur unka searched route dikhta hai,
+    phone number kabhi nahi.
+
+ 4. Ye exactly BlaBlaCar jaisa demand
+    signal hai — owner ko pata chalta hai
+    uske route pe demand kitni hai"
