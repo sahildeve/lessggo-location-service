@@ -41,3 +41,152 @@ Algorithm check karta hai:
   3. Seats available hain?  ✅
         ↓
 Match! Dono ko suggest karta hai
+
+
+
+Frontend developer ke liye important points:
+1. rideId kahan se milega:
+
+Jab ride offer hoti hai ya search results aate hain, response me _id field hota hai — yahi rideId hai jo baaki sab APIs me use karna hai.
+2. lat/lng kahan se aayega:
+
+Backend ko lat/lng chahiye, address nahi. Frontend ko Google Maps Places API ya Geocoding API use karni hogi — user address type kare, Google convert kare, phir wo lat/lng backend ko bhejo.
+3. pricePerSeat: 0 allowed hai:
+
+Free ride dena chahte ho toh pricePerSeat: 0 bhejo — backend already support karta hai.
+4. Socket.io same gateway URL se:
+
+
+
+Bro "find API" se kya matlab hai exactly? 🤔
+Option A — Ride search API?
+           POST /api/location/ride/search
+           (ye toh already bana hua hai!)
+
+Option B — User dhundna (community me)?
+           "Find users near me" type feature
+
+Option C — Nearby rides map pe dikhana?
+           "Show rides on map" feature
+
+Option D — Kuch aur?
+
+
+
+Bro ab samajh gaya! 🎯 Frontend developer pooch raha hai — "Search karne ke baad jo rides milti hain, wo kaise dikhayein map pe?"
+
+
+
+answer
+POST /api/location/ride/search
+        ↓
+Response aata hai:
+{
+  "success": true,
+  "data": {
+    "rides": [
+      {
+        "_id": "6a30f6f8834...",     ← rideId
+        "offeredBy": {
+          "username": "sandeep"
+        },
+        "from": {
+          "address": "Connaught Place",
+          "coordinates": {
+            "coordinates": [77.2167, 28.6315]  ← [lng, lat]
+          }
+        },
+        "to": {
+          "address": "Sector 18 Noida",
+          "coordinates": {
+            "coordinates": [77.3219, 28.5705]
+          }
+        },
+        "departureTime": "2026-06-20T10:00:00.000Z",
+        "availableSeats": 2,
+        "pricePerSeat": 150,
+        "status": "active"
+      }
+    ],
+    "count": 1
+  }
+}
+
+
+
+1. Response me "rides" array milega
+2. Har ride me:
+   - from.coordinates.coordinates[1] → pickup lat
+   - from.coordinates.coordinates[0] → pickup lng
+   - to.coordinates.coordinates[1]   → dropoff lat
+   - to.coordinates.coordinates[0]   → dropoff lng
+
+3. Google Maps pe har ride ka
+   pickup location pe marker lagao
+
+4. User marker pe click kare →
+   ride details card dikhao:
+   (driver, seats, price, time)
+
+5. "Join" button pe click kare →
+   POST /api/location/ride/:rideId/request
+
+
+
+Important — coordinates ka format: ⚠️
+   MongoDB GeoJSON format hota hai:
+coordinates: [longitude, latitude]
+             ← PEHLE LNG, PHIR LAT!
+
+Google Maps ka format:
+{ lat: 28.6315, lng: 77.2167 }
+
+Frontend ko swap karna padega:
+lat = coordinates[1]
+lng = coordinates[0]
+
+
+
+// Search API call
+const response = await axios.post(
+  'https://gateway-service-production-c6a9.up.railway.app/api/location/ride/search',
+  {
+    fromLat: 28.6315,
+    fromLng: 77.2167,
+    toLat: 28.5705,
+    toLng: 77.3219,
+    departureTime: "2026-06-20T10:00:00.000Z"
+  },
+  { headers: { Authorization: `Bearer ${accessToken}` } }
+);
+
+// Rides array
+const rides = response.data.data.rides;
+
+// Map pe markers lagao
+rides.forEach(ride => {
+  const lat = ride.from.coordinates.coordinates[1]; // ← index 1 = lat
+  const lng = ride.from.coordinates.coordinates[0]; // ← index 0 = lng
+
+  // Google Maps marker
+  new google.maps.Marker({
+    position: { lat, lng },
+    map: map,
+    title: `${ride.offeredBy.username} - ₹${ride.pricePerSeat}`
+  });
+});
+
+
+Summary — Frontend ko ye batao: 🎯
+"Search API pehle se bana hua hai —
+ POST /api/location/ride/search pe
+ lat/lng bhejo, backend rides return
+ karega.
+
+ Har ride me from.coordinates.coordinates
+ array hoga — index[1] = lat, index[0] = lng
+ (MongoDB GeoJSON format hai, Google Maps
+ se ulta hai — dhyan rakhna!)
+
+ Wahi coordinates Google Maps markers
+ me use karo"

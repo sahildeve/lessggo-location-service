@@ -30,6 +30,7 @@ export const offerRide = async (req, res) => {
     const ride = await locationService.offerRide(
       req.user.sub,
       req.user.username,
+      req.user.fullName,  // ← ye add
       req.body        // ← ye pass ho raha hai?
     );
     return success(res, { ride }, 'Ride offered successfully', 201);
@@ -58,6 +59,7 @@ export const requestRide = async (req, res) => {
       rideId,
       req.user.sub,
       req.user.username,
+      req.user.fullName,  // ← ye add
       req.body
     );
     return success(res, { ride }, 'Ride request sent successfully');

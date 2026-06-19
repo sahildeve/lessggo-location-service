@@ -32,6 +32,7 @@ export const getUserLocations = async (userId) => {
 export const offerRide = async (
   userId,
   username,
+  fullName,
   {
     fromAddress,
     fromCity,
@@ -47,7 +48,7 @@ export const offerRide = async (
   },
 ) => {
   const ride = await Ride.create({
-    offeredBy: { userId, username },
+    offeredBy: { userId, username: fullName || username, },
     from: {
       address: fromAddress,
       city: fromCity,
@@ -144,6 +145,7 @@ export const requestRide = async (
   rideId,
   userId,
   username,
+  fullName,
   { pickupAddress, pickupLat, pickupLng },
 ) => {
   const ride = await Ride.findById(rideId);
@@ -175,7 +177,7 @@ export const requestRide = async (
 
   ride.riders.push({
     userId,
-    username,
+    username: fullName || username,
     status: "pending",
     pickupLocation: {
       address: pickupAddress,
