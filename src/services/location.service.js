@@ -2,7 +2,7 @@ import Location from "../models/Location.js";
 import Ride from "../models/Ride.js";
 import redis from "../config/redis.js";
 import logger from "../utils/logger.js";
-import SearchRequest from '../models/SearchRequest.js';
+import SearchRequest from "../models/SearchRequest.js";
 
 // ─── Save Pickup/Dropoff Location
 export const saveLocation = async (
@@ -376,37 +376,50 @@ export const findInterestedUsers = async ({
 
   // Step 3: Sirf zaroori info return karo
   return matched.map((s) => ({
-    _id: s._id,        // ← ye add karo
+    _id: s._id,
     userId: s.userId,
     username: s.username,
-    searchedRoute: { from: s.from.address, to: s.to.address },
+    searchedRoute: {
+      from: s.from.address,
+      to: s.to.address,
+      fromCoordinates: {
+        lat: s.from.coordinates.coordinates[1], // ← lat
+        lng: s.from.coordinates.coordinates[0], // ← lng
+      },
+      toCoordinates: {
+        lat: s.to.coordinates.coordinates[1], // ← lat
+        lng: s.to.coordinates.coordinates[0], // ← lng
+      },
+    },
     searchedAt: s.createdAt,
   }));
 };
-
 
 // ─── Get Interested Users for an existing ride (owner only)
 export const getInterestedUsersForRide = async (rideId, userId) => {
   const ride = await Ride.findById(rideId).lean();
 
   if (!ride) {
-    const err = new Error('Ride not found');
+    const err = new Error("Ride not found");
     err.status = 404;
     throw err;
   }
   if (ride.offeredBy.userId.toString() !== userId) {
-    const err = new Error('Only ride owner can view interested users');
+    const err = new Error("Only ride owner can view interested users");
     err.status = 403;
     throw err;
   }
 
   const fromLat = ride.from.coordinates.coordinates[1];
   const fromLng = ride.from.coordinates.coordinates[0];
-  const toLat   = ride.to.coordinates.coordinates[1];
-  const toLng   = ride.to.coordinates.coordinates[0];
+  const toLat = ride.to.coordinates.coordinates[1];
+  const toLng = ride.to.coordinates.coordinates[0];
 
   const interestedUsers = await findInterestedUsers({
-    fromLat, fromLng, toLat, toLng,
+    fromLat,
+    fromLng,
+    toLat,
+    toLng,
     departureTime: ride.departureTime,
   });
 
