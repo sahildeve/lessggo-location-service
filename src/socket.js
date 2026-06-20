@@ -33,10 +33,16 @@ const initSocket = (httpServer) => {
   // ─── Connection 
   io.on("connection", (socket) => {
     logger.info(`User connected: ${socket.user.username}`);
+    socket.join(`user:${socket.user.sub}`);
 
     // ─── Join Ride Room 
-    socket.on("join_ride", async (rideId) => {
+    socket.on("join_ride", async (payload) => {
       try {
+        const rideId = typeof payload === "string" ? payload : payload?.rideId;
+        if (!rideId) {
+          throw new Error("rideId is required");
+        }
+
         socket.join(rideId); // user us ride ke room me join ho gaya
         logger.info(`${socket.user.username} joined ride room: ${rideId}`);
 

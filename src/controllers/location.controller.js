@@ -87,6 +87,31 @@ export const requestRide = async (req, res) => {
       req.user.fullName, // ← ye add
       req.body,
     );
+    const io = req.app.get("io");
+    const rider = ride.riders.find((r) => r.userId.toString() === req.user.sub);
+    if (io && rider) {
+      io.to(`user:${ride.offeredBy.userId.toString()}`).emit(
+        "incoming_ride_request",
+        {
+          rideId: ride._id.toString(),
+          riderId: req.user.sub,
+          riderName: rider.username || req.user.fullName || req.user.username,
+          role: "passenger",
+          fromLocation: rider.pickupLocation?.address || req.body.pickupAddress,
+          toLocation: ride.to?.address,
+          fromCoordinates: {
+            lat:
+              rider.pickupLocation?.coordinates?.coordinates?.[1] ??
+              req.body.pickupLat,
+            lng:
+              rider.pickupLocation?.coordinates?.coordinates?.[0] ??
+              req.body.pickupLng,
+          },
+          requestedAt: rider.requestedAt,
+        },
+      );
+    }
+
     return success(res, { ride }, "Ride request sent successfully");
   } catch (err) {
     logger.error("Request ride error:", {
@@ -164,6 +189,44 @@ export const getInterestedUsers = async (req, res) => {
     return success(res, data, 'Interested users fetched successfully');
   } catch (err) {
     logger.error('Get interested users error:', { message: err.message, stack: err.stack });
+    return error(res, err.message, err.status || 500);
+  }
+};
+
+export const getMyRides = async (req, res) => {
+  try {
+    const rides = await locationService.getMyRides(req.user.sub);
+
+    return success(
+      res,
+      { rides, count: rides.length },
+      "My rides fetched successfully"
+    );
+  } catch (err) {
+    logger.error("Get my rides error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+
+    return error(res, err.message, err.status || 500);
+  }
+};
+
+export const getMyRequests = async (req, res) => {
+  try {
+    const rides = await locationService.getMyRequests(req.user.sub);
+
+    return success(
+      res,
+      { rides, count: rides.length },
+      "My requests fetched successfully"
+    );
+  } catch (err) {
+    logger.error("Get my requests error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+
     return error(res, err.message, err.status || 500);
   }
 };

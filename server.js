@@ -16,6 +16,7 @@ const start = async () => {
 
     // Socket.io initialize karo
     const io = initSocket(httpServer);
+    app.set("io", io);
 
     httpServer.listen(PORT, () => {
       logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);

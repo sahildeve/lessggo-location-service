@@ -20,6 +20,8 @@ import {
   updateCabLocation,
   endRide,
   getInterestedUsers,
+  getMyRides,
+  getMyRequests,
 } from "../controllers/location.controller.js";
 
 const router = Router();
@@ -31,6 +33,10 @@ router.get("/", protect, getUserLocations);
 // ─── Ride Offer & Search
 router.post("/ride/offer", protect, validate(offerRideSchema), offerRide);
 router.post("/ride/search", protect, validate(searchRideSchema), searchRides);
+
+// ─── Rides of a User
+router.get("/ride/my-rides", protect, getMyRides);  
+router.get("/ride/my-requests", protect, getMyRequests);
 
 router.get("/ride/:rideId/interested-users", protect, getInterestedUsers);
 

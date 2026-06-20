@@ -218,6 +218,24 @@ export const requestRide = async (
   return ride;
 };
 
+export const getMyRides = async (userId) => {
+  return Ride.find({ "offeredBy.userId": userId })
+    .select("-__v -routeCoordinates")
+    .sort({ departureTime: -1, createdAt: -1 })
+    .lean();
+};
+
+export const getMyRequests = async (userId) => {
+  const rides = await Ride.find({ "riders.userId": userId })  
+    .sort({ departureTime: -1, createdAt: -1 })
+    .lean();
+
+  return rides.map((ride) => ({
+    ...ride,
+    myRequest: ride.riders.find((rider) => rider.userId.toString() === userId),
+  }));
+};
+
 // ─── Accept / Reject Ride Request
 export const respondToRequest = async (
   rideId,
