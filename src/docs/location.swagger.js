@@ -641,6 +641,49 @@ export const locationSwaggerDocs = {
     },
   },
 
+  "/api/location/ride/{rideId}/cancel": {
+    patch: {
+      summary: "Cancel a ride — only ride owner can cancel",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a34aa15f585c7dfc43336a4" },
+        },
+      ],
+      responses: {
+        200: { description: "Ride cancelled successfully" },
+        400: { description: "Ride already completed or cancelled" },
+        403: { description: "Only ride owner can cancel" },
+        404: { description: "Ride not found" },
+        401: { description: "Unauthorized" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/withdraw": {
+  patch: {
+    summary: "Withdraw join request — rider apni request cancel kar sakta hai",
+    tags: ["Ride"],
+    security: [{ bearerAuth: [] }],
+    parameters: [
+      {
+        name: "rideId", in: "path", required: true,
+        schema: { type: "string", example: "6a34aa15f585c7dfc43336a4" },
+      },
+    ],
+    responses: {
+      200: { description: "Request withdrawn successfully" },
+      400: { description: "Cannot withdraw an accepted request — contact driver" },
+      404: { description: "Ride or request not found" },
+      401: { description: "Unauthorized" },
+    },
+  },
+},
+
   "/api/location/ride/{rideId}/end": {
     patch: {
       summary: "End a ride — only ride owner can end",

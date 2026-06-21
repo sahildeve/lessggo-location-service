@@ -38,6 +38,7 @@ const initSocket = (httpServer) => {
     // ─── Join Ride Room 
     socket.on("join_ride", async (payload) => {
       try {
+        
         const rideId = typeof payload === "string" ? payload : payload?.rideId;
         if (!rideId) {
           throw new Error("rideId is required");

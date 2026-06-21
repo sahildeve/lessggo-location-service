@@ -22,6 +22,8 @@ import {
   getInterestedUsers,
   getMyRides,
   getMyRequests,
+  cancelRide,
+  withdrawRequest,
 } from "../controllers/location.controller.js";
 
 const router = Router();
@@ -35,7 +37,7 @@ router.post("/ride/offer", protect, validate(offerRideSchema), offerRide);
 router.post("/ride/search", protect, validate(searchRideSchema), searchRides);
 
 // ─── Rides of a User
-router.get("/ride/my-rides", protect, getMyRides);  
+router.get("/ride/my-rides", protect, getMyRides);
 router.get("/ride/my-requests", protect, getMyRequests);
 
 router.get("/ride/:rideId/interested-users", protect, getInterestedUsers);
@@ -62,6 +64,9 @@ router.patch(
   validate(updateCabLocationSchema),
   updateCabLocation,
 );
+
+router.patch("/ride/:rideId/cancel", protect, cancelRide); // Driver
+router.patch("/ride/:rideId/withdraw", protect, withdrawRequest); // Rider
 
 router.patch("/ride/:rideId/end", protect, endRide);
 export default router;

@@ -226,7 +226,7 @@ export const getMyRides = async (userId) => {
 };
 
 export const getMyRequests = async (userId) => {
-  const rides = await Ride.find({ "riders.userId": userId })  
+  const rides = await Ride.find({ "riders.userId": userId })
     .sort({ departureTime: -1, createdAt: -1 })
     .lean();
 
@@ -354,6 +354,66 @@ export const endRide = async (rideId, userId) => {
   await redis.del(`ride_members:${rideId}`);
 
   return ride;
+};
+
+// Cancel Ride by offer side
+export const cancelRide = async (rideId, userId) => {
+  const ride = await Ride.findById(rideId);
+
+  if (!ride) {
+    const err = new Error("Ride not found");
+    err.status = 404;
+    throw err;
+  }
+  if (ride.offeredBy.userId.toString() !== userId) {
+    const err = new Error("Only ride owner can cancel");
+    err.status = 403;
+    throw err;
+  }
+  if (["completed", "cancelled"].includes(ride.status)) {
+    const err = new Error(`Ride is already ${ride.status}`);
+    err.status = 400;
+    throw err;
+  }
+
+  ride.status = "cancelled";
+  await ride.save();
+
+  // Redis se members delete 
+  await redis.del(`ride_members:${rideId}`);
+
+  return ride;
+};
+
+// ─── Rider: Request Withdraw
+export const withdrawRequest = async (rideId, userId) => {
+  const ride = await Ride.findById(rideId);
+
+  if (!ride) {
+    const err = new Error("Ride not found"); err.status = 404; throw err;
+  }
+
+  const riderIndex = ride.riders.findIndex(
+    (r) => r.userId.toString() === userId
+  );
+  if (riderIndex === -1) {
+    const err = new Error("You have not requested this ride"); err.status = 404; throw err;
+  }
+
+  const riderStatus = ride.riders[riderIndex].status;
+
+  // ── Agar accepted tha toh seat wapas do 
+  if (riderStatus === "accepted") {
+    ride.availableSeats += 1;        // ← seat wapas
+    if (ride.status === "full") {
+      ride.status = "active";        // ← full thi toh active ho jaaye
+    }
+  }
+
+  ride.riders.splice(riderIndex, 1);
+  await ride.save();
+
+  return { ride, riderStatus };      // ← riderStatus bhi return karo socket ke liye
 };
 
 // ─── Find Interested Users (jinhone is route ko search kiya tha)

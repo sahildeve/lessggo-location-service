@@ -143,6 +143,57 @@ export const respondToRequest = async (req, res) => {
   }
 };
 
+// Cancel ride by offer side
+export const cancelRide = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const ride = await locationService.cancelRide(rideId, req.user.sub);
+
+    // ── Socket notification — saare riders ko batao 
+    const io = req.app.get("io");
+    if (io) {
+      io.to(rideId).emit("ride_cancelled", {
+        rideId,
+        cancelledBy: req.user.fullName || req.user.username,
+        message: "Ride has been cancelled by the driver",
+      });
+    }
+
+    return success(res, { ride }, "Ride cancelled successfully");
+  } catch (err) {
+    logger.error("Cancel ride error:", { message: err.message, stack: err.stack });
+    return error(res, err.message, err.status || 500);
+  }
+};
+
+// ─── Rider: Request Withdraw
+export const withdrawRequest = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const { ride, riderStatus } = await locationService.withdrawRequest(
+      rideId,
+      req.user.sub
+    );
+
+    // ── Socket notification — driver ko batao 
+    const io = req.app.get("io");
+    if (io) {
+      io.to(rideId).emit("ride_request_withdrawn", {
+        userId:   req.user.sub,
+        username: req.user.fullName || req.user.username,
+        rideId,
+        wasAccepted: riderStatus === "accepted",  // driver ko pata chale seat free hui
+        availableSeats: ride.availableSeats,
+      });
+    }
+
+    return success(res, { ride }, "Request withdrawn successfully");
+  } catch (err) {
+    logger.error("Withdraw request error:", { message: err.message, stack: err.stack });
+    return error(res, err.message, err.status || 500);
+  }
+};
+
 // ─── Get Ride
 export const getRide = async (req, res) => {
   try {
