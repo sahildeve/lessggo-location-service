@@ -226,7 +226,10 @@ export const getMyRides = async (userId) => {
 };
 
 export const getMyRequests = async (userId) => {
-  const rides = await Ride.find({ "riders.userId": userId })
+  const rides = await Ride.find({
+    "riders.userId": userId,
+    status: { $nin: ["cancelled", "completed"] }, // ← ye add 
+  })
     .sort({ departureTime: -1, createdAt: -1 })
     .lean();
 
@@ -379,7 +382,7 @@ export const cancelRide = async (rideId, userId) => {
   ride.status = "cancelled";
   await ride.save();
 
-  // Redis se members delete 
+  // Redis se members delete
   await redis.del(`ride_members:${rideId}`);
 
   return ride;
@@ -390,30 +393,34 @@ export const withdrawRequest = async (rideId, userId) => {
   const ride = await Ride.findById(rideId);
 
   if (!ride) {
-    const err = new Error("Ride not found"); err.status = 404; throw err;
+    const err = new Error("Ride not found");
+    err.status = 404;
+    throw err;
   }
 
   const riderIndex = ride.riders.findIndex(
-    (r) => r.userId.toString() === userId
+    (r) => r.userId.toString() === userId,
   );
   if (riderIndex === -1) {
-    const err = new Error("You have not requested this ride"); err.status = 404; throw err;
+    const err = new Error("You have not requested this ride");
+    err.status = 404;
+    throw err;
   }
 
   const riderStatus = ride.riders[riderIndex].status;
 
-  // ── Agar accepted tha toh seat wapas do 
+  // ── Agar accepted tha toh seat wapas do
   if (riderStatus === "accepted") {
-    ride.availableSeats += 1;        // ← seat wapas
+    ride.availableSeats += 1; // ← seat wapas
     if (ride.status === "full") {
-      ride.status = "active";        // ← full thi toh active ho jaaye
+      ride.status = "active"; // ← full thi toh active ho jaaye
     }
   }
 
   ride.riders.splice(riderIndex, 1);
   await ride.save();
 
-  return { ride, riderStatus };      // ← riderStatus bhi return karo socket ke liye
+  return { ride, riderStatus }; // ← riderStatus bhi return karo socket ke liye
 };
 
 // ─── Find Interested Users (jinhone is route ko search kiya tha)
