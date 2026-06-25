@@ -218,6 +218,161 @@ export const requestRide = async (
   return ride;
 };
 
+// ─── Driver invites a user to join ride
+export const inviteRider = async (
+  rideId,
+  driverUserId,
+  toUserId,
+  toUsername,
+) => {
+  const ride = await Ride.findById(rideId);
+
+  if (!ride) {
+    const err = new Error("Ride not found");
+    err.status = 404;
+    throw err;
+  }
+  if (ride.offeredBy.userId.toString() !== driverUserId) {
+    const err = new Error("Only ride owner can invite users");
+    err.status = 403;
+    throw err;
+  }
+  if (ride.status !== "active") {
+    const err = new Error("Ride is not accepting invites");
+    err.status = 400;
+    throw err;
+  }
+  if (toUserId === driverUserId) {
+    const err = new Error("You cannot invite yourself");
+    err.status = 400;
+    throw err;
+  }
+
+  const alreadyExists = ride.riders.find(
+    (r) => r.userId.toString() === toUserId,
+  );
+  if (alreadyExists) {
+    const err = new Error("This user already has a request/invite");
+    err.status = 409;
+    throw err;
+  }
+
+  ride.riders.push({
+    userId: toUserId,
+    username: toUsername,
+    status: "invited",
+    invitedBy: "owner",
+  });
+
+  await ride.save();
+  return ride;
+};
+
+// ─── Driver cancels/withdraws an invite
+export const deleteInvite = async (rideId, driverUserId, toUserId) => {
+  const ride = await Ride.findById(rideId);
+
+  if (!ride) {
+    const err = new Error("Ride not found");
+    err.status = 404;
+    throw err;
+  }
+  if (ride.offeredBy.userId.toString() !== driverUserId) {
+    const err = new Error("Only ride owner can cancel invites");
+    err.status = 403;
+    throw err;
+  }
+
+  const riderIndex = ride.riders.findIndex(
+    (r) => r.userId.toString() === toUserId && r.status === "invited",
+  );
+
+  if (riderIndex === -1) {
+    const err = new Error("No pending invite found for this user");
+    err.status = 404;
+    throw err;
+  }
+
+  ride.riders.splice(riderIndex, 1);
+  await ride.save();
+  return ride;
+};
+
+// ─── Rider exits/cancel an accepted ride
+export const exitRide = async (rideId, userId) => {
+  const ride = await Ride.findById(rideId);
+
+  if (!ride) {
+    const err = new Error("Ride not found");
+    err.status = 404;
+    throw err;
+  }
+
+  const riderIndex = ride.riders.findIndex(
+    (r) => r.userId.toString() === userId && r.status === "accepted",
+  );
+
+  if (riderIndex === -1) {
+    const err = new Error("You are not an accepted rider in this ride");
+    err.status = 404;
+    throw err;
+  }
+
+  // Seat wapas do
+  ride.availableSeats += 1;
+  if (ride.status === "full") ride.status = "active";
+
+  // Rider remove karo
+  ride.riders.splice(riderIndex, 1);
+  await ride.save();
+
+  // Redis se bhi remove karo
+  await redis.srem(`ride_members:${rideId}`, userId);
+
+  return ride;
+};
+
+// ─── Driver: Accepted Rider ko Remove karo
+export const removeRider = async (rideId, riderId, driverUserId) => {
+  const ride = await Ride.findById(rideId);
+
+  if (!ride) {
+    const err = new Error("Ride not found");
+    err.status = 404;
+    throw err;
+  }
+  if (ride.offeredBy.userId.toString() !== driverUserId) {
+    const err = new Error("Only ride owner can remove riders");
+    err.status = 403;
+    throw err;
+  }
+
+  const riderIndex = ride.riders.findIndex(
+    (r) => r.userId.toString() === riderId,
+  );
+  if (riderIndex === -1) {
+    const err = new Error("Rider not found in this ride");
+    err.status = 404;
+    throw err;
+  }
+
+  const riderStatus = ride.riders[riderIndex].status;
+
+  // Agar accepted tha toh seat wapas do
+  if (riderStatus === "accepted") {
+    ride.availableSeats += 1;
+    if (ride.status === "full") ride.status = "active";
+  }
+
+  ride.riders.splice(riderIndex, 1);
+  await ride.save();
+
+  // Redis se bhi remove karo
+  await redis.srem(`ride_members:${rideId}`, riderId);
+
+  return { ride, riderStatus };
+};
+
 export const getMyRides = async (userId) => {
   return Ride.find({ "offeredBy.userId": userId })
     .select("-__v -routeCoordinates")
@@ -228,7 +383,7 @@ export const getMyRides = async (userId) => {
 export const getMyRequests = async (userId) => {
   const rides = await Ride.find({
     "riders.userId": userId,
-    status: { $nin: ["cancelled", "completed"] }, // ← ye add 
+    status: { $nin: ["cancelled", "completed"] }, // ← ye add
   })
     .sort({ departureTime: -1, createdAt: -1 })
     .lean();

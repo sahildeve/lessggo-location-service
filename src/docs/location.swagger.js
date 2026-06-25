@@ -333,6 +333,184 @@ export const locationSwaggerDocs = {
     },
   },
 
+  "/api/location/ride/{rideId}/invite": {
+    post: {
+      summary: "Driver invites a user to join ride",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581a" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["toUserId", "toUsername"],
+              properties: {
+                toUserId: {
+                  type: "string",
+                  example: "6a1fb71391ca3b940980581b",
+                },
+                toUsername: { type: "string", example: "Rahul Garg" },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: "Invite sent successfully" },
+        403: { description: "Only ride owner can invite" },
+        409: { description: "User already has request/invite" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/deleteInvite/{toUserId}": {
+    delete: {
+      summary: "Driver cancels/withdraws an invite",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581a" },
+        },
+        {
+          name: "toUserId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581b" },
+        },
+      ],
+      responses: {
+        200: { description: "Invite cancelled successfully" },
+        403: { description: "Only ride owner can cancel invites" },
+        404: { description: "No pending invite found" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/remove-rider/{riderId}": {
+    patch: {
+      summary: "Driver removes an accepted rider from ride",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581a" },
+        },
+        {
+          name: "riderId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581b" },
+        },
+      ],
+      responses: {
+        200: { description: "Rider removed successfully" },
+        403: { description: "Only ride owner can remove riders" },
+        404: { description: "Rider not found in this ride" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/exit": {
+    delete: {
+      summary: "Rider exits an accepted ride (plan change)",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581a" },
+        },
+      ],
+      responses: {
+        200: { description: "Exited ride successfully" },
+        404: { description: "You are not an accepted rider in this ride" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/cancel-request": {
+    delete: {
+      summary: "Rider cancels own pending request",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581a" },
+        },
+      ],
+      responses: {
+        200: { description: "Request cancelled successfully" },
+        404: { description: "No pending request found" },
+      },
+    },
+  },
+
+  "/api/location/ride/my-rides": {
+    get: {
+      summary: "Get all rides offered by current user",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      responses: {
+        200: { description: "My rides fetched successfully" },
+        401: { description: "Unauthorized" },
+      },
+    },
+  },
+
+  "/api/location/ride/my-requests": {
+    get: {
+      summary: "Get all ride requests made by current user",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      responses: {
+        200: { description: "My requests fetched successfully" },
+        401: { description: "Unauthorized" },
+      },
+    },
+  },
+
+  "/api/location/ride/{rideId}/interested-users": {
+    get: {
+      summary: "Get users who searched this route (owner only)",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581a" },
+        },
+      ],
+      responses: {
+        200: { description: "Interested users fetched successfully" },
+        403: { description: "Only ride owner can view" },
+        404: { description: "Ride not found" },
+      },
+    },
+  },
+
   "/api/location/ride/{rideId}": {
     get: {
       summary: "Get ride details",
@@ -382,8 +560,6 @@ export const locationSwaggerDocs = {
       },
     },
   },
-
-  // existing entries ke baad add karo
 
   "/api/location/ride/my-rides": {
     get: {
@@ -665,24 +841,29 @@ export const locationSwaggerDocs = {
   },
 
   "/api/location/ride/{rideId}/withdraw": {
-  patch: {
-    summary: "Withdraw join request — rider apni request cancel kar sakta hai",
-    tags: ["Ride"],
-    security: [{ bearerAuth: [] }],
-    parameters: [
-      {
-        name: "rideId", in: "path", required: true,
-        schema: { type: "string", example: "6a34aa15f585c7dfc43336a4" },
+    patch: {
+      summary:
+        "Withdraw join request — rider apni request cancel kar sakta hai",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a34aa15f585c7dfc43336a4" },
+        },
+      ],
+      responses: {
+        200: { description: "Request withdrawn successfully" },
+        400: {
+          description: "Cannot withdraw an accepted request — contact driver",
+        },
+        404: { description: "Ride or request not found" },
+        401: { description: "Unauthorized" },
       },
-    ],
-    responses: {
-      200: { description: "Request withdrawn successfully" },
-      400: { description: "Cannot withdraw an accepted request — contact driver" },
-      404: { description: "Ride or request not found" },
-      401: { description: "Unauthorized" },
     },
   },
-},
 
   "/api/location/ride/{rideId}/end": {
     patch: {

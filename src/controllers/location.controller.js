@@ -36,7 +36,7 @@ export const offerRide = async (req, res) => {
     const { ride, interestedUsers } = await locationService.offerRide(
       req.user.sub,
       req.user.username,
-      req.user.fullName,   // ← ye add
+      req.user.fullName, // ← ye add
       req.body,
     );
     return success(
@@ -122,6 +122,121 @@ export const requestRide = async (req, res) => {
   }
 };
 
+// ─── Driver invites a rider
+export const inviteRider = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const { toUserId, toUsername } = req.body;
+
+    const ride = await locationService.inviteRider(
+      rideId,
+      req.user.sub,
+      toUserId,
+      toUsername,
+    );
+
+    // Socket notification — invited user ko batao
+    const io = req.app.get("io");
+    if (io) {
+      io.to(rideId).emit("ride_invite_received", {
+        rideId,
+        fromUserId: req.user.sub,
+        fromUsername: req.user.fullName || req.user.username,
+        message: "You have been invited to join this ride",
+      });
+    }
+
+    return success(res, { ride }, "Invite sent successfully");
+  } catch (err) {
+    logger.error("Invite rider error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+    return error(res, err.message, err.status || 500);
+  }
+};
+
+// ─── Driver cancels an invite
+export const deleteInvite = async (req, res) => {
+  try {
+    const { rideId, toUserId } = req.params;
+
+    const ride = await locationService.cancelInvite(
+      rideId,
+      req.user.sub,
+      toUserId,
+    );
+
+    return success(res, { ride }, "Invite cancelled successfully");
+  } catch (err) {
+    logger.error("Cancel invite error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+    return error(res, err.message, err.status || 500);
+  }
+};
+
+// ─── Rider exits/cancel an accepted ride
+export const cancelRiderRide = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+
+    const ride = await locationService.cancelRiderRide(rideId, req.user.sub);
+
+    // Socket notification — driver ko batao
+    const io = req.app.get("io");
+    if (io) {
+      io.to(rideId).emit("rider_exited", {
+        rideId,
+        userId: req.user.sub,
+        username: req.user.fullName || req.user.username,
+        message: "A rider has left the ride",
+        availableSeats: ride.availableSeats,
+      });
+    }
+
+    return success(res, { ride }, "You have exited the ride successfully");
+  } catch (err) {
+    logger.error("Cancel rider ride error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+    return error(res, err.message, err.status || 500);
+  }
+};
+
+//  --remove accpted rider by offer side
+export const removeRider = async (req, res) => {
+  try {
+    const { rideId, riderId } = req.params;
+    const { ride, riderStatus } = await locationService.removeRider(
+      rideId,
+      riderId,
+      req.user.sub,
+    );
+
+    // Socket notification — rider ko batao
+    const io = req.app.get("io");
+    if (io) {
+      io.to(rideId).emit("rider_removed", {
+        removedUserId: riderId,
+        rideId,
+        message: "You have been removed from this ride by the driver",
+        availableSeats: ride.availableSeats,
+      });
+    }
+
+    return success(res, { ride }, "Rider removed successfully");
+  } catch (err) {
+    logger.error("Remove rider error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+    return error(res, err.message, err.status || 500);
+  }
+};
+
 // ─── Accept / Reject Ride Request
 export const respondToRequest = async (req, res) => {
   try {
@@ -149,7 +264,7 @@ export const cancelRide = async (req, res) => {
     const { rideId } = req.params;
     const ride = await locationService.cancelRide(rideId, req.user.sub);
 
-    // ── Socket notification — saare riders ko batao 
+    // ── Socket notification — saare riders ko batao
     const io = req.app.get("io");
     if (io) {
       io.to(rideId).emit("ride_cancelled", {
@@ -161,7 +276,10 @@ export const cancelRide = async (req, res) => {
 
     return success(res, { ride }, "Ride cancelled successfully");
   } catch (err) {
-    logger.error("Cancel ride error:", { message: err.message, stack: err.stack });
+    logger.error("Cancel ride error:", {
+      message: err.message,
+      stack: err.stack,
+    });
     return error(res, err.message, err.status || 500);
   }
 };
@@ -172,24 +290,27 @@ export const withdrawRequest = async (req, res) => {
     const { rideId } = req.params;
     const { ride, riderStatus } = await locationService.withdrawRequest(
       rideId,
-      req.user.sub
+      req.user.sub,
     );
 
-    // ── Socket notification — driver ko batao 
+    // ── Socket notification — driver ko batao
     const io = req.app.get("io");
     if (io) {
       io.to(rideId).emit("ride_request_withdrawn", {
-        userId:   req.user.sub,
+        userId: req.user.sub,
         username: req.user.fullName || req.user.username,
         rideId,
-        wasAccepted: riderStatus === "accepted",  // driver ko pata chale seat free hui
+        wasAccepted: riderStatus === "accepted", // driver ko pata chale seat free hui
         availableSeats: ride.availableSeats,
       });
     }
 
     return success(res, { ride }, "Request withdrawn successfully");
   } catch (err) {
-    logger.error("Withdraw request error:", { message: err.message, stack: err.stack });
+    logger.error("Withdraw request error:", {
+      message: err.message,
+      stack: err.stack,
+    });
     return error(res, err.message, err.status || 500);
   }
 };
@@ -231,15 +352,20 @@ export const endRide = async (req, res) => {
   }
 };
 
-
-// ─── Get Interested Users for an existing ride 
+// ─── Get Interested Users for an existing ride
 export const getInterestedUsers = async (req, res) => {
   try {
     const { rideId } = req.params;
-    const data = await locationService.getInterestedUsersForRide(rideId, req.user.sub);
-    return success(res, data, 'Interested users fetched successfully');
+    const data = await locationService.getInterestedUsersForRide(
+      rideId,
+      req.user.sub,
+    );
+    return success(res, data, "Interested users fetched successfully");
   } catch (err) {
-    logger.error('Get interested users error:', { message: err.message, stack: err.stack });
+    logger.error("Get interested users error:", {
+      message: err.message,
+      stack: err.stack,
+    });
     return error(res, err.message, err.status || 500);
   }
 };
@@ -251,7 +377,7 @@ export const getMyRides = async (req, res) => {
     return success(
       res,
       { rides, count: rides.length },
-      "My rides fetched successfully"
+      "My rides fetched successfully",
     );
   } catch (err) {
     logger.error("Get my rides error:", {
@@ -270,7 +396,7 @@ export const getMyRequests = async (req, res) => {
     return success(
       res,
       { rides, count: rides.length },
-      "My requests fetched successfully"
+      "My requests fetched successfully",
     );
   } catch (err) {
     logger.error("Get my requests error:", {
