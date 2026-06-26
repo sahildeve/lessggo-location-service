@@ -138,7 +138,7 @@ export const searchRides = async ({
   });
 
   // ── Step 4: Search ko save karo — taaki future me ride offer hone pe match ho sake ──
-  await SearchRequest.create({
+  const searchRequest = await SearchRequest.create({
     userId,
     username,
     from: {
@@ -152,7 +152,7 @@ export const searchRides = async ({
     departureTime,
   });
 
-  return matched;
+  return { matched, newSearchRequest: searchRequest };
 };
 
 // ─── Haversine Distance Formula

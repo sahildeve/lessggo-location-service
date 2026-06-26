@@ -13,32 +13,32 @@ const initSocket = (httpServer) => {
 
   // ─── Auth Middleware for Socket
   io.use((socket, next) => {
-  try {
-    // handshake.auth se bhi lo, query se bhi lo
-    const token = socket.handshake.auth?.token || socket.handshake.query?.auth;
-    if (!token) return next(new Error('No token provided'));
+    try {
+      // handshake.auth se bhi lo, query se bhi lo
+      const token =
+        socket.handshake.auth?.token || socket.handshake.query?.auth;
+      if (!token) return next(new Error("No token provided"));
 
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, {
-      issuer:   'cab-auth-service',
-      audience: 'cab-app',
-    });
+      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, {
+        issuer: "cab-auth-service",
+        audience: "cab-app",
+      });
 
-    socket.user = decoded;
-    next();
-  } catch (err) {
-    next(new Error('Authentication failed'));
-  }
-});
+      socket.user = decoded;
+      next();
+    } catch (err) {
+      next(new Error("Authentication failed"));
+    }
+  });
 
-  // ─── Connection 
+  // ─── Connection
   io.on("connection", (socket) => {
     logger.info(`User connected: ${socket.user.username}`);
     socket.join(`user:${socket.user.sub}`);
 
-    // ─── Join Ride Room 
+    // ─── Join Ride Room
     socket.on("join_ride", async (payload) => {
       try {
-        
         const rideId = typeof payload === "string" ? payload : payload?.rideId;
         if (!rideId) {
           throw new Error("rideId is required");
@@ -83,7 +83,7 @@ const initSocket = (httpServer) => {
       }
     });
 
-    // ─── Cab Live Location Update 
+    // ─── Cab Live Location Update
     socket.on("update_cab_location", async ({ rideId, lat, lng }) => {
       try {
         // DB me save karo
@@ -101,7 +101,7 @@ const initSocket = (httpServer) => {
       }
     });
 
-    // ─── Leave Ride Room 
+    // ─── Leave Ride Room
     socket.on("leave_ride", (rideId) => {
       socket.leave(rideId);
       logger.info(`${socket.user.username} left ride room: ${rideId}`);
@@ -112,7 +112,31 @@ const initSocket = (httpServer) => {
       });
     });
 
-    // ─── Disconnect 
+    // ─── Driver: Interested users watch krega
+    socket.on("watch_interested_users", (rideId) => {
+      socket.join(`watching:${rideId}`);
+      logger.info(
+        `${socket.user.username} watching interested users for: ${rideId}`,
+      );
+    });
+
+    socket.on("unwatch_interested_users", (rideId) => {
+      socket.leave(`watching:${rideId}`);
+    });
+
+    // ─── Rider: New rides watch karega
+    socket.on("watch_new_rides", ({ fromLat, fromLng, toLat, toLng }) => {
+      socket.searchCriteria = { fromLat, fromLng, toLat, toLng };
+      socket.join(`searching:${socket.user.sub}`);
+      logger.info(`${socket.user.username} watching new rides`);
+    });
+
+    socket.on("unwatch_new_rides", () => {
+      socket.leave(`searching:${socket.user.sub}`);
+      socket.searchCriteria = null;
+    });
+
+    // ─── Disconnect
     socket.on("disconnect", () => {
       logger.info(`User disconnected: ${socket.user.username}`);
     });

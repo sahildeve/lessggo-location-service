@@ -30,15 +30,31 @@ export const getUserLocations = async (req, res) => {
   }
 };
 
-// ─── Offer Ride
 export const offerRide = async (req, res) => {
   try {
     const { ride, interestedUsers } = await locationService.offerRide(
       req.user.sub,
       req.user.username,
-      req.user.fullName, // ← ye add
+      req.user.fullName,
       req.body,
     );
+
+    const io = req.app.get("io");
+    if (io) {
+      interestedUsers.forEach(user => {
+        io.to(`searching:${user.userId}`).emit("new_ride_available", {
+          rideId: ride._id,
+          offeredBy: ride.offeredBy,
+          from: ride.from,
+          to: ride.to,
+          departureTime: ride.departureTime,
+          availableSeats: ride.availableSeats,
+          pricePerSeat: ride.pricePerSeat,
+          message: "A new ride matching your search is available!",
+        });
+      });
+    }
+
     return success(
       res,
       { ride, interestedUsers, interestedCount: interestedUsers.length },
@@ -46,32 +62,46 @@ export const offerRide = async (req, res) => {
       201,
     );
   } catch (err) {
-    logger.error("Offer ride error:", {
-      message: err.message,
-      stack: err.stack,
-    });
+    logger.error("Offer ride error:", { message: err.message, stack: err.stack });
     return error(res, err.message, err.status || 500);
   }
 };
 
-// ─── Search Rides
 export const searchRides = async (req, res) => {
   try {
-    const rides = await locationService.searchRides({
+    const { matched, newSearchRequest } = await locationService.searchRides({
       ...req.body,
       userId: req.user.sub,
       username: req.user.fullName || req.user.username,
     });
-    return success(
-      res,
-      { rides, count: rides.length },
-      "Rides fetched successfully",
-    );
+
+    const io = req.app.get("io");
+    if (io && newSearchRequest) {
+      matched.forEach((ride) => {
+        io.to(`watching:${ride._id}`).emit("new_interested_user", {
+          searchRequestId: newSearchRequest._id,
+          userId: req.user.sub,
+          username: req.user.fullName || req.user.username,
+          searchedRoute: {
+            from: newSearchRequest.from.address,
+            to: newSearchRequest.to.address,
+            fromCoordinates: {
+              lat: newSearchRequest.from.coordinates.coordinates[1],
+              lng: newSearchRequest.from.coordinates.coordinates[0],
+            },
+            toCoordinates: {
+              lat: newSearchRequest.to.coordinates.coordinates[1],
+              lng: newSearchRequest.to.coordinates.coordinates[0],
+            },
+          },
+          searchedAt: newSearchRequest.createdAt,
+        });
+      });
+    }
+
+    return success(res, { rides: matched, count: matched.length }, "Rides fetched successfully");
   } catch (err) {
-    logger.error("Search rides error:", {
-      message: err.message,
-      stack: err.stack,
-    });
+    logger.error("Search rides error:", { message: err.message, stack: err.stack });
     return error(res, err.message, err.status || 500);
   }
 };
@@ -162,7 +192,7 @@ export const deleteInvite = async (req, res) => {
   try {
     const { rideId, toUserId } = req.params;
 
-    const ride = await locationService.cancelInvite(
+    const ride = await locationService.deleteInvite(
       rideId,
       req.user.sub,
       toUserId,
@@ -183,7 +213,7 @@ export const cancelRiderRide = async (req, res) => {
   try {
     const { rideId } = req.params;
 
-    const ride = await locationService.cancelRiderRide(rideId, req.user.sub);
+    const ride = await locationService.exitRide(rideId, req.user.sub);
 
     // Socket notification — driver ko batao
     const io = req.app.get("io");
