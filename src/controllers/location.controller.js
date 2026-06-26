@@ -87,6 +87,7 @@ export const requestRide = async (req, res) => {
       req.user.fullName, // ← ye add
       req.body,
     );
+
     const io = req.app.get("io");
     const rider = ride.riders.find((r) => r.userId.toString() === req.user.sub);
     if (io && rider) {
@@ -138,7 +139,7 @@ export const inviteRider = async (req, res) => {
     // Socket notification — invited user ko batao
     const io = req.app.get("io");
     if (io) {
-      io.to(rideId).emit("ride_invite_received", {
+      io.to(`user:${toUserId}`).emit("ride_invite_received", {
         rideId,
         fromUserId: req.user.sub,
         fromUsername: req.user.fullName || req.user.username,
@@ -187,12 +188,13 @@ export const cancelRiderRide = async (req, res) => {
     // Socket notification — driver ko batao
     const io = req.app.get("io");
     if (io) {
-      io.to(rideId).emit("rider_exited", {
+      io.to(`user:${ride.offeredBy.userId.toString()}`).emit("rider_exited", {
+        // ← sirf driver ko
         rideId,
-        userId: req.user.sub,
-        username: req.user.fullName || req.user.username,
-        message: "A rider has left the ride",
+        riderId: req.user.sub,
+        riderName: req.user.fullName || req.user.username,
         availableSeats: ride.availableSeats,
+        message: "A rider has left the ride",
       });
     }
 
@@ -219,7 +221,7 @@ export const removeRider = async (req, res) => {
     // Socket notification — rider ko batao
     const io = req.app.get("io");
     if (io) {
-      io.to(rideId).emit("rider_removed", {
+      io.to(`user:${riderId}`).emit("rider_removed", {
         removedUserId: riderId,
         rideId,
         message: "You have been removed from this ride by the driver",
@@ -248,6 +250,28 @@ export const respondToRequest = async (req, res) => {
       action,
       req.user.sub,
     );
+
+    // Sirf us rider ko notify karo
+    const io = req.app.get("io");
+    if (io) {
+      io.to(`user:${riderId}`).emit(
+        action === "accepted"
+          ? "ride_request_accepted"
+          : "ride_request_rejected",
+        {
+          rideId,
+          driverName: req.user.fullName || req.user.username,
+          from: ride.from.address,
+          to: ride.to.address,
+          departureTime: ride.departureTime,
+          message:
+            action === "accepted"
+              ? "Your ride request has been accepted!"
+              : "Your ride request has been rejected",
+        },
+      );
+    }
+
     return success(res, { ride }, `Rider ${action} successfully`);
   } catch (err) {
     logger.error("Respond to request error:", {
@@ -267,11 +291,18 @@ export const cancelRide = async (req, res) => {
     // ── Socket notification — saare riders ko batao
     const io = req.app.get("io");
     if (io) {
-      io.to(rideId).emit("ride_cancelled", {
-        rideId,
-        cancelledBy: req.user.fullName || req.user.username,
-        message: "Ride has been cancelled by the driver",
-      });
+      // Saare accepted riders ko personally notify
+      ride.riders
+        .filter((r) => r.status === "accepted")
+        .forEach((r) => {
+          io.to(`user:${r.userId}`).emit("ride_cancelled", {
+            rideId,
+            driverName: req.user.fullName || req.user.username,
+            from: ride.from.address,
+            to: ride.to.address,
+            message: "Your ride has been cancelled by the driver",
+          });
+        });
     }
 
     return success(res, { ride }, "Ride cancelled successfully");
@@ -296,13 +327,16 @@ export const withdrawRequest = async (req, res) => {
     // ── Socket notification — driver ko batao
     const io = req.app.get("io");
     if (io) {
-      io.to(rideId).emit("ride_request_withdrawn", {
-        userId: req.user.sub,
-        username: req.user.fullName || req.user.username,
-        rideId,
-        wasAccepted: riderStatus === "accepted", // driver ko pata chale seat free hui
-        availableSeats: ride.availableSeats,
-      });
+      io.to(`user:${ride.offeredBy.userId.toString()}`).emit(
+        "ride_request_withdrawn",
+        {
+          userId: req.user.sub,
+          username: req.user.fullName || req.user.username,
+          rideId,
+          wasAccepted: riderStatus === "accepted",
+          availableSeats: ride.availableSeats,
+        },
+      );
     }
 
     return success(res, { ride }, "Request withdrawn successfully");
@@ -345,6 +379,19 @@ export const endRide = async (req, res) => {
   try {
     const { rideId } = req.params;
     const ride = await locationService.endRide(rideId, req.user.sub);
+
+    const io = req.app.get("io");
+    if (io) {
+      ride.riders
+        .filter((r) => r.status === "accepted")
+        .forEach((r) => {
+          io.to(`user:${r.userId}`).emit("ride_ended", {
+            rideId,
+            message: "Your ride has been completed!",
+          });
+        });
+    }
+
     return success(res, { ride }, "Ride ended successfully");
   } catch (err) {
     logger.error("End ride error:", { message: err.message, stack: err.stack });
