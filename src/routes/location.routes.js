@@ -53,8 +53,8 @@ router.post(
   validate(requestRideSchema),
   requestRide,
 );
-router.post("/ride/:rideId/invite", protect, inviteRider);
-router.delete('/ride/:rideId/deleteInvite/:toUserId', protect, deleteInvite);
+router.post("/ride/:rideId/invite", protect, inviteRider);    //333333
+router.delete('/ride/:rideId/deleteInvite/:toUserId', protect, deleteInvite);  //22222222
 router.patch(
   "/ride/:rideId/respond",
   protect,
@@ -71,11 +71,10 @@ router.patch(
   updateCabLocation,
 );
 
-router.patch("/ride/:rideId/cancel", protect, cancelRide); // Driver
-router.patch("/ride/:rideId/withdraw", protect, withdrawRequest); // Rider
-router.delete('/ride/:rideId/exit', protect, cancelRiderRide);
+router.patch("/ride/:rideId/cancel", protect, cancelRide); // Driver — ride cancel
+router.patch("/ride/:rideId/withdraw", protect, withdrawRequest); // Rider — pending request cancel
+router.patch('/ride/:rideId/exit', protect, cancelRiderRide);  // 1 Rider — accepted ride exit
 
-router.delete("/ride/:rideId/rider/:rideId", protect, removeRider); // Driver rider remove kre
-
+router.patch("/ride/:rideId/rider/:riderId", protect, removeRider); //4 Driver — rider remove
 router.patch("/ride/:rideId/end", protect, endRide);
 export default router;

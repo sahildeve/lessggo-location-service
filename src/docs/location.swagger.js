@@ -399,7 +399,7 @@ export const locationSwaggerDocs = {
     },
   },
 
-  "/api/location/ride/{rideId}/remove-rider/{riderId}": {
+  "/api/location/ride/{rideId}/rider/{riderId}": {
     patch: {
       summary: "Driver removes an accepted rider from ride",
       tags: ["Ride"],
@@ -427,7 +427,7 @@ export const locationSwaggerDocs = {
   },
 
   "/api/location/ride/{rideId}/exit": {
-    delete: {
+    patch: {
       summary: "Rider exits an accepted ride (plan change)",
       tags: ["Ride"],
       security: [{ bearerAuth: [] }],
