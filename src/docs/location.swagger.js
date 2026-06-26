@@ -886,6 +886,73 @@ export const locationSwaggerDocs = {
       },
     },
   },
+
+  "/api/location/ride/{rideId}/respond-invite": {
+    patch: {
+      summary: "Rider responds to driver's invite — accept or reject",
+      tags: ["Ride"],
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: "rideId",
+          in: "path",
+          required: true,
+          schema: { type: "string", example: "6a1fb71391ca3b940980581a" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["action"],
+              properties: {
+                action: {
+                  type: "string",
+                  enum: ["accepted", "rejected"],
+                  example: "accepted",
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: {
+          description: "Invite accepted/rejected successfully",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: { type: "boolean", example: true },
+                  data: {
+                    type: "object",
+                    properties: {
+                      ride: {
+                        type: "object",
+                        properties: {
+                          _id: {
+                            type: "string",
+                            example: "6a1fb71391ca3b940980581a",
+                          },
+                          status: { type: "string", example: "active" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        400: { description: "Ride is full or not accepting responses" },
+        404: { description: "No pending invite found" },
+        401: { description: "Unauthorized" },
+      },
+    },
+  },
 };
 
 export const socketDocs = {

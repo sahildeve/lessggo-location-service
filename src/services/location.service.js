@@ -440,6 +440,67 @@ export const respondToRequest = async (
   return ride;
 };
 
+// ─── Rider responds to driver's invite
+export const riderRespondToInvite = async (rideId, userId, action) => {
+  const ride = await Ride.findById(rideId);
+
+  if (!ride) {
+    const err = new Error("Ride not found");
+    err.status = 404;
+    throw err;
+  }
+
+  // ← ye add karo
+  if (ride.status !== "active") {
+    const err = new Error("Ride is not accepting responses");
+    err.status = 400;
+    throw err;
+  }
+
+  const rider = ride.riders.find(
+    (r) => r.userId.toString() === userId && r.status === "invited",
+  );
+  if (!rider) {
+    const err = new Error("No pending invite found");
+    err.status = 404;
+    throw err;
+  }
+
+  if (!["accepted", "rejected"].includes(action)) {
+    const err = new Error("Action must be accepted or rejected");
+    err.status = 400;
+    throw err;
+  }
+
+  // ← ye add karo
+  if (action === "accepted") {
+    const acceptedCount = ride.riders.filter(
+      (r) => r.status === "accepted",
+    ).length;
+    if (acceptedCount >= ride.availableSeats) {
+      const err = new Error("Ride is already full");
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  rider.status = action;
+
+  // Agar accept kiya toh Redis mein add karo
+  if (action === "accepted") {
+    await redis.sadd(`ride_members:${rideId}`, userId);
+    await redis.expire(`ride_members:${rideId}`, 86400 * 7);
+
+    const acceptedCount = ride.riders.filter(
+      (r) => r.status === "accepted",
+    ).length;
+    if (acceptedCount >= ride.availableSeats) ride.status = "full";
+  }
+
+  await ride.save();
+  return ride;
+};
+
 // ─── Get Ride
 export const getRide = async (rideId) => {
   const ride = await Ride.findById(rideId).lean();

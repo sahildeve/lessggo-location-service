@@ -41,7 +41,7 @@ export const offerRide = async (req, res) => {
 
     const io = req.app.get("io");
     if (io) {
-      interestedUsers.forEach(user => {
+      interestedUsers.forEach((user) => {
         io.to(`searching:${user.userId}`).emit("new_ride_available", {
           rideId: ride._id,
           offeredBy: ride.offeredBy,
@@ -62,7 +62,10 @@ export const offerRide = async (req, res) => {
       201,
     );
   } catch (err) {
-    logger.error("Offer ride error:", { message: err.message, stack: err.stack });
+    logger.error("Offer ride error:", {
+      message: err.message,
+      stack: err.stack,
+    });
     return error(res, err.message, err.status || 500);
   }
 };
@@ -99,9 +102,16 @@ export const searchRides = async (req, res) => {
       });
     }
 
-    return success(res, { rides: matched, count: matched.length }, "Rides fetched successfully");
+    return success(
+      res,
+      { rides: matched, count: matched.length },
+      "Rides fetched successfully",
+    );
   } catch (err) {
-    logger.error("Search rides error:", { message: err.message, stack: err.stack });
+    logger.error("Search rides error:", {
+      message: err.message,
+      stack: err.stack,
+    });
     return error(res, err.message, err.status || 500);
   }
 };
@@ -305,6 +315,45 @@ export const respondToRequest = async (req, res) => {
     return success(res, { ride }, `Rider ${action} successfully`);
   } catch (err) {
     logger.error("Respond to request error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+    return error(res, err.message, err.status || 500);
+  }
+};
+
+// ─── Rider responds to invite
+export const riderRespondToInvite = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const { action } = req.body;
+
+    const ride = await locationService.riderRespondToInvite(
+      rideId,
+      req.user.sub,
+      action,
+    );
+
+    // Driver ko notify karo
+    const io = req.app.get("io");
+    if (io) {
+      io.to(`user:${ride.offeredBy.userId.toString()}`).emit(
+        action === "accepted" ? "invite_accepted" : "invite_rejected",
+        {
+          rideId,
+          riderId: req.user.sub,
+          riderName: req.user.fullName || req.user.username,
+          message:
+            action === "accepted"
+              ? "Your invite has been accepted!"
+              : "Your invite has been rejected",
+        },
+      );
+    }
+
+    return success(res, { ride }, `Invite ${action} successfully`);
+  } catch (err) {
+    logger.error("Rider respond to invite error:", {
       message: err.message,
       stack: err.stack,
     });
