@@ -22,6 +22,7 @@ import {
   getInterestedUsers,
   getMyRides,
   getMyRequests,
+  getMyChats,
   cancelRide,
   withdrawRequest,
   removeRider,
@@ -44,6 +45,7 @@ router.post("/ride/search", protect, validate(searchRideSchema), searchRides);
 // ─── Rides of a User
 router.get("/ride/my-rides", protect, getMyRides);
 router.get("/ride/my-requests", protect, getMyRequests);
+router.get("/ride/my-chats", protect, getMyChats);
 
 router.get("/ride/:rideId/interested-users", protect, getInterestedUsers);
 

@@ -1,7 +1,7 @@
 import * as locationService from "../services/location.service.js";
+import * as chatServiceClient from "../utils/chatServiceClient.js";
 import { success, error } from "../utils/response.js";
 import logger from "../utils/logger.js";
-
 // ─── Save Location
 export const saveLocation = async (req, res) => {
   try {
@@ -284,32 +284,38 @@ export const respondToRequest = async (req, res) => {
   try {
     const { rideId } = req.params;
     const { riderId, action } = req.body;
-    const ride = await locationService.respondToRequest(
+    const { ride, rider } = await locationService.respondToRequest(
       rideId,
       riderId,
       action,
       req.user.sub,
     );
 
-    // Sirf us rider ko notify karo
     const io = req.app.get("io");
-    if (io) {
-      io.to(`user:${riderId}`).emit(
-        action === "accepted"
-          ? "ride_request_accepted"
-          : "ride_request_rejected",
-        {
-          rideId,
-          driverName: req.user.fullName || req.user.username,
-          from: ride.from.address,
-          to: ride.to.address,
-          departureTime: ride.departureTime,
-          message:
-            action === "accepted"
-              ? "Your ride request has been accepted!"
-              : "Your ride request has been rejected",
-        },
+    const driverName = req.user.fullName || req.user.username;
+
+    if (action === "accepted") {
+      await chatServiceClient.postSystemMessage(
+        rideId,
+        `${rider.username} joined the ride`,
       );
+
+      if (io) {
+        io.to(`user:${riderId}`).emit("ride_request_accepted", {
+          rideId: ride._id.toString(),
+          driverId: req.user.sub,
+          driverName,
+          from: ride.from,
+          to: ride.to,
+          departureTime: ride.departureTime,
+        });
+      }
+    } else if (action === "rejected" && io) {
+      io.to(`user:${riderId}`).emit("ride_request_rejected", {
+        rideId: ride._id.toString(),
+        driverId: req.user.sub,
+        driverName,
+      });
     }
 
     return success(res, { ride }, `Rider ${action} successfully`);
@@ -333,6 +339,13 @@ export const riderRespondToInvite = async (req, res) => {
       req.user.sub,
       action,
     );
+
+    if (action === "accepted") {
+      await chatServiceClient.postSystemMessage(
+        rideId,
+        `${req.user.fullName || req.user.username} joined the ride`,
+      );
+    }
 
     // Driver ko notify karo
     const io = req.app.get("io");
@@ -367,6 +380,11 @@ export const cancelRide = async (req, res) => {
     const { rideId } = req.params;
     const ride = await locationService.cancelRide(rideId, req.user.sub);
 
+    await chatServiceClient.closeRideChat(
+      rideId,
+      "Ride has been cancelled by the driver",
+    );
+
     // ── Socket notification — saare riders ko batao
     const io = req.app.get("io");
     if (io) {
@@ -393,7 +411,6 @@ export const cancelRide = async (req, res) => {
     return error(res, err.message, err.status || 500);
   }
 };
-
 // ─── Rider: Request Withdraw
 export const withdrawRequest = async (req, res) => {
   try {
@@ -526,6 +543,25 @@ export const getMyRequests = async (req, res) => {
     );
   } catch (err) {
     logger.error("Get my requests error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+
+    return error(res, err.message, err.status || 500);
+  }
+};
+
+export const getMyChats = async (req, res) => {
+  try {
+    const chats = await locationService.getMyChats(req.user.sub);
+
+    return success(
+      res,
+      { chats, count: chats.length },
+      "My chats fetched successfully",
+    );
+  } catch (err) {
+    logger.error("Get my chats error:", {
       message: err.message,
       stack: err.stack,
     });

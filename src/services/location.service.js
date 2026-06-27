@@ -394,6 +394,86 @@ export const getMyRequests = async (userId) => {
   }));
 };
 
+const ACTIVE_RIDE_STATUSES = { $nin: ["cancelled", "completed"] };
+
+const rideChatSelect =
+  "_id offeredBy from to departureTime status riders.userId riders.username riders.status";
+
+export const getMyChats = async (userId) => {
+  const [asDriver, asRider] = await Promise.all([
+    Ride.find({
+      "offeredBy.userId": userId,
+      status: ACTIVE_RIDE_STATUSES,
+      riders: { $elemMatch: { status: "accepted" } },
+    })
+      .select(rideChatSelect)
+      .sort({ departureTime: -1, createdAt: -1 })
+      .lean(),
+    Ride.find({
+      riders: { $elemMatch: { userId, status: "accepted" } },
+      status: ACTIVE_RIDE_STATUSES,
+    })
+      .select(rideChatSelect)
+      .sort({ departureTime: -1, createdAt: -1 })
+      .lean(),
+  ]);
+
+  const chatMap = new Map();
+
+  for (const ride of asDriver) {
+    const acceptedRiders = ride.riders.filter((r) => r.status === "accepted");
+    chatMap.set(ride._id.toString(), {
+      rideId: ride._id.toString(),
+      role: "driver",
+      from: ride.from,
+      to: ride.to,
+      departureTime: ride.departureTime,
+      status: ride.status,
+      participants: [
+        {
+          userId: ride.offeredBy.userId.toString(),
+          username: ride.offeredBy.username,
+          role: "driver",
+        },
+        ...acceptedRiders.map((r) => ({
+          userId: r.userId.toString(),
+          username: r.username,
+          role: "rider",
+        })),
+      ],
+    });
+  }
+
+  for (const ride of asRider) {
+    const rideId = ride._id.toString();
+    if (chatMap.has(rideId)) continue;
+
+    const acceptedRiders = ride.riders.filter((r) => r.status === "accepted");
+    chatMap.set(rideId, {
+      rideId,
+      role: "rider",
+      from: ride.from,
+      to: ride.to,
+      departureTime: ride.departureTime,
+      status: ride.status,
+      participants: [
+        {
+          userId: ride.offeredBy.userId.toString(),
+          username: ride.offeredBy.username,
+          role: "driver",
+        },
+        ...acceptedRiders.map((r) => ({
+          userId: r.userId.toString(),
+          username: r.username,
+          role: "rider",
+        })),
+      ],
+    });
+  }
+
+  return Array.from(chatMap.values());
+};
+
 // ─── Accept / Reject Ride Request
 export const respondToRequest = async (
   rideId,
@@ -421,12 +501,14 @@ export const respondToRequest = async (
     throw err;
   }
 
+  const previousStatus = rider.status;
   rider.status = action;
 
-  // ── Agar accept hua toh Redis me add karo ─────────────────────
   if (action === "accepted") {
     await redis.sadd(`ride_members:${rideId}`, riderId);
     await redis.expire(`ride_members:${rideId}`, 86400 * 7);
+  } else if (action === "rejected" && previousStatus === "accepted") {
+    await redis.srem(`ride_members:${rideId}`, riderId);
   }
 
   const acceptedCount = ride.riders.filter(
@@ -437,7 +519,7 @@ export const respondToRequest = async (
   }
 
   await ride.save();
-  return ride;
+  return { ride, rider, previousStatus };
 };
 
 // ─── Rider responds to driver's invite
@@ -627,16 +709,17 @@ export const withdrawRequest = async (rideId, userId) => {
 
   // ── Agar accepted tha toh seat wapas do
   if (riderStatus === "accepted") {
-    ride.availableSeats += 1; // ← seat wapas
+    ride.availableSeats += 1;
     if (ride.status === "full") {
-      ride.status = "active"; // ← full thi toh active ho jaaye
+      ride.status = "active";
     }
+    await redis.srem(`ride_members:${rideId}`, userId);
   }
 
   ride.riders.splice(riderIndex, 1);
   await ride.save();
 
-  return { ride, riderStatus }; // ← riderStatus bhi return karo socket ke liye
+  return { ride, riderStatus };
 };
 
 // ─── Find Interested Users (jinhone is route ko search kiya tha)
