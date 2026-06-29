@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./src/config/swagger.js";
 import locationRoutes from "./src/routes/location.routes.js";
+import Sentry from "./src/config/sentry.js";
 
 const app = express();
 
@@ -33,6 +34,11 @@ app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // ─── Health Check
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "location-service" });
+});
+
+app.use((err, req, res, next) => {
+  Sentry.captureException(err);
+  next(err);
 });
 
 // ─── Global Error Handler

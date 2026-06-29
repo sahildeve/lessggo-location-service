@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { initSentry } from './src/config/sentry.js';
+initSentry(); 
 import http from "http";
 import app from "./app.js";
 import connectDB from "./src/config/db.js";

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import logger from "../utils/logger.js";
+import Sentry from "./sentry.js";
 
 const connectDB = async () => {
   try {
@@ -10,7 +11,9 @@ const connectDB = async () => {
     });
     logger.info("Location MongoDB connected");
   } catch (err) {
+    Sentry.captureException(err);
     logger.error("Location MongoDB connection error:", err.message);
+    await Sentry.flush(2000);
     process.exit(1);
   }
 };
