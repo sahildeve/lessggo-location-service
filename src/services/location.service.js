@@ -383,7 +383,6 @@ export const getMyRides = async (userId) => {
 export const getMyRequests = async (userId) => {
   const rides = await Ride.find({
     "riders.userId": userId,
-    status: { $nin: ["cancelled", "completed"] }, // ← ye add
   })
     .sort({ departureTime: -1, createdAt: -1 })
     .lean();

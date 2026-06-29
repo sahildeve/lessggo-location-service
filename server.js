@@ -6,12 +6,14 @@ import app from "./app.js";
 import connectDB from "./src/config/db.js";
 import initSocket from "./src/socket.js";
 import logger from "./src/utils/logger.js";
+import { startCornJobs } from "./src/config/cron.js";
 
 const PORT = process.env.PORT || 3002;
 
 const start = async () => {
   try {
     await connectDB();
+    startCornJobs() // cheaking expiredrides
 
     // HTTP server  — Socket.io ke liye zaroori hai
     const httpServer = http.createServer(app);
