@@ -268,8 +268,8 @@ export const inviteRider = async (
   return ride;
 };
 
-// ─── Driver cancels/withdraws an invite
-export const deleteInvite = async (rideId, driverUserId, toUserId) => {
+// ─── Driver cancels/withdraws an invite (status update, no delete)
+export const withdrawInviteByDriver = async (rideId, driverUserId, toUserId) => {
   const ride = await Ride.findById(rideId);
 
   if (!ride) {
@@ -283,17 +283,17 @@ export const deleteInvite = async (rideId, driverUserId, toUserId) => {
     throw err;
   }
 
-  const riderIndex = ride.riders.findIndex(
-    (r) => r.userId.toString() === toUserId && r.status === "invited",
+  const rider = ride.riders.find(
+    (r) => r.userId.toString() === toUserId && r.status === "invited"
   );
 
-  if (riderIndex === -1) {
+  if (!rider) {
     const err = new Error("No pending invite found for this user");
     err.status = 404;
     throw err;
   }
 
-  ride.riders.splice(riderIndex, 1);
+  rider.status = "invite_cancelled"; // ← status update, record nahi hataya
   await ride.save();
   return ride;
 };

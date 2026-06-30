@@ -41,7 +41,13 @@ const rideSchema = new mongoose.Schema(
         username: { type: String },
         status: {
           type: String,
-          enum: ["pending", "accepted", "rejected", "invited"],  
+          enum: [
+            "pending",
+            "invited",
+            "accepted",
+            "rejected",
+            "invite_cancelled",
+          ],
           default: "pending",
         },
         pickupLocation: {
@@ -58,7 +64,7 @@ const rideSchema = new mongoose.Schema(
     // ─── Ride status
     status: {
       type: String,
-      enum: ["active", "full", "ongoing", "completed", "cancelled", 'expired'],
+      enum: ["active", "full", "ongoing", "completed", "cancelled", "expired"],
       default: "active",
     },
 

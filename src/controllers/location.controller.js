@@ -198,22 +198,19 @@ export const inviteRider = async (req, res) => {
 };
 
 // ─── Driver cancels an invite
-export const deleteInvite = async (req, res) => {
+export const withdrawInviteByDriver = async (req, res) => {
   try {
     const { rideId, toUserId } = req.params;
 
-    const ride = await locationService.deleteInvite(
+    const ride = await locationService.withdrawInviteByDriver(
       rideId,
       req.user.sub,
-      toUserId,
+      toUserId
     );
 
-    return success(res, { ride }, "Invite cancelled successfully");
+    return success(res, { ride }, "Invite withdrawn successfully");
   } catch (err) {
-    logger.error("Cancel invite error:", {
-      message: err.message,
-      stack: err.stack,
-    });
+    logger.error("Withdraw invite error:", { message: err.message, stack: err.stack });
     return error(res, err.message, err.status || 500);
   }
 };

@@ -372,9 +372,9 @@ export const locationSwaggerDocs = {
     },
   },
 
-  "/api/location/ride/{rideId}/deleteInvite/{toUserId}": {
-    delete: {
-      summary: "Driver cancels/withdraws an invite",
+  "/api/location/ride/{rideId}/withdrawInvite/{toUserId}": {
+    patch: {
+      summary: "Driver withdraws an invite (status update, not delete)",
       tags: ["Ride"],
       security: [{ bearerAuth: [] }],
       parameters: [
@@ -392,7 +392,7 @@ export const locationSwaggerDocs = {
         },
       ],
       responses: {
-        200: { description: "Invite cancelled successfully" },
+        200: { description: "Invite withdrawn successfully" },
         403: { description: "Only ride owner can cancel invites" },
         404: { description: "No pending invite found" },
       },

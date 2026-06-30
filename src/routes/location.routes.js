@@ -27,7 +27,7 @@ import {
   withdrawRequest,
   removeRider,
   inviteRider,
-  deleteInvite,
+  withdrawInviteByDriver,
   cancelRiderRide,
   riderRespondToInvite,
 } from "../controllers/location.controller.js";
@@ -57,7 +57,7 @@ router.post(
   requestRide,
 );
 router.post("/ride/:rideId/invite", protect, inviteRider); //333333
-router.delete("/ride/:rideId/deleteInvite/:toUserId", protect, deleteInvite); //22222222
+router.patch("/ride/:rideId/withdrawInvite/:toUserId", protect, withdrawInviteByDriver); //22222222
 router.patch(
   "/ride/:rideId/respond",
   protect,
