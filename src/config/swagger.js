@@ -1,4 +1,5 @@
 import { locationSwaggerDocs } from '../docs/location.swagger.js';
+import { notificationSwaggerDocs } from '../docs/notification.swagger.js';
 
 const swaggerSpec = {
   openapi: '3.0.0',
@@ -22,7 +23,10 @@ const swaggerSpec = {
       },
     },
   },
-  paths: locationSwaggerDocs,
+  paths: {
+    ...locationSwaggerDocs,
+    ...notificationSwaggerDocs
+  }
 };
 
 export default swaggerSpec;

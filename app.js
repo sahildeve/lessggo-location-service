@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./src/config/swagger.js";
 import locationRoutes from "./src/routes/location.routes.js";
+import notificationRoutes from "./src/routes/notification.routes.js";
 import Sentry from "./src/config/sentry.js";
 
 const app = express();
@@ -27,6 +28,9 @@ app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 // ─── Routes
 app.use("/api/location", locationRoutes);
+
+// existing routes 
+app.use("/api/notifications", notificationRoutes);
 
 // ─── Swagger Docs
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));

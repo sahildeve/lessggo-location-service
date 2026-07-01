@@ -2,19 +2,17 @@ import cron from "node-cron";
 import Ride from "../models/Ride.js";
 import logger from "../utils/logger.js";
 import redis from "./redis.js";
+import { createNotification } from "../utils/notification.js";  // ← import add karo
 
-export const startCornJobs = () => {
-  // Har 5 minute me check
+export const startCronJobs = () => {
   cron.schedule("*/5 * * * *", async () => {
     try {
       logger.info("Cron: Checking for expired rides...");
 
-      // Grace period = 5 minutes
       const gracePeriod = new Date(Date.now() - 5 * 60 * 1000);
 
-      // Active rides find jinka departureTime + 5min nikal gaya
       const expiredRides = await Ride.find({
-        status: { $in: ['active', 'full'] },
+        status: { $in: ["active", "full"] },
         departureTime: { $lt: gracePeriod },
       }).lean();
 
@@ -23,7 +21,6 @@ export const startCornJobs = () => {
         return;
       }
 
-      // Bulk update
       const expiredRideIds = expiredRides.map((r) => r._id);
 
       await Ride.updateMany(
@@ -31,9 +28,17 @@ export const startCornJobs = () => {
         { $set: { status: "expired" } },
       );
 
-      // Redis cleanup
+      // Redis cleanup + notification — loop ke andar ← fix
       for (const ride of expiredRides) {
         await redis.del(`ride_members:${ride._id}`);
+
+        await createNotification({        
+          userId: ride.offeredBy.userId,
+          type: "ride_expired",
+          title: "Ride Expired",
+          message: `Your ride from ${ride.from.address} to ${ride.to.address} has expired`,
+          data: { rideId: ride._id },
+        });
       }
 
       logger.info(`Cron: ${expiredRides.length} rides marked as expired`);
@@ -42,5 +47,5 @@ export const startCornJobs = () => {
     }
   });
 
-  logger.info("Cron jobs started ");
+  logger.info("Cron jobs started");
 };
