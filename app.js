@@ -30,7 +30,7 @@ app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/api/location", locationRoutes);
 
 // existing routes 
-app.use("/api/notifications", notificationRoutes);
+app.use("/api/location/notifications", notificationRoutes);
 
 // ─── Swagger Docs
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
