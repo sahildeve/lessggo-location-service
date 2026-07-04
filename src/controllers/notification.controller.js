@@ -9,14 +9,16 @@ export const getNotifications = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Early return agar koi notification nahi
     if (notifications.length === 0) {
       return success(res, { notifications: [], count: 0 }, "No notifications");
     }
 
-    // Safe delete — sirf jo fetch hue unhe delete karo
+    // viewedAt set karo — 5 min baad MongoDB khud delete karega
     const notificationIds = notifications.map((n) => n._id);
-    await Notification.deleteMany({ _id: { $in: notificationIds } });
+    await Notification.updateMany(
+      { _id: { $in: notificationIds }, viewedAt: null },
+      { $set: { viewedAt: new Date() } }
+    );
 
     return success(res, { notifications, count: notifications.length }, "Notifications fetched");
   } catch (err) {
