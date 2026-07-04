@@ -3,6 +3,12 @@ import * as chatServiceClient from "../utils/chatServiceClient.js";
 import { success, error } from "../utils/response.js";
 import logger from "../utils/logger.js";
 import { createNotification } from "../utils/notification.js";
+import {
+  sendRideRequestEmail,
+  sendRideAcceptedEmail,
+  sendRideRejectedEmail,
+  sendRideCancelledEmail,
+} from "../utils/emailNotification.js";
 
 // ─── Save Location
 export const saveLocation = async (req, res) => {
@@ -163,6 +169,12 @@ export const requestRide = async (req, res) => {
       data: { rideId: ride._id, riderId: req.user.sub },
     });
 
+    // email notification
+    await sendRideRequestEmail(
+      ride.offeredBy.userId,
+      req.user.fullName || req.user.username,
+    );
+
     return success(res, { ride }, "Ride request sent successfully");
   } catch (err) {
     logger.error("Request ride error:", {
@@ -222,7 +234,9 @@ export const withdrawInviteByDriver = async (req, res) => {
     const { rideId, toUserId } = req.params;
 
     const ride = await locationService.withdrawInviteByDriver(
-      rideId, req.user.sub, toUserId,
+      rideId,
+      req.user.sub,
+      toUserId,
     );
 
     const io = req.app.get("io");
@@ -243,7 +257,10 @@ export const withdrawInviteByDriver = async (req, res) => {
 
     return success(res, { ride }, "Invite withdrawn successfully");
   } catch (err) {
-    logger.error("Withdraw invite error:", { message: err.message, stack: err.stack });
+    logger.error("Withdraw invite error:", {
+      message: err.message,
+      stack: err.stack,
+    });
     return error(res, err.message, err.status || 500);
   }
 };
@@ -291,7 +308,9 @@ export const removeRider = async (req, res) => {
   try {
     const { rideId, riderId } = req.params;
     const { ride, riderStatus } = await locationService.removeRider(
-      rideId, riderId, req.user.sub,
+      rideId,
+      riderId,
+      req.user.sub,
     );
 
     const io = req.app.get("io");
@@ -304,7 +323,8 @@ export const removeRider = async (req, res) => {
       });
     }
 
-    await createNotification({        // ← add karo
+    await createNotification({
+      // ← add karo
       userId: riderId,
       type: "rider_removed",
       title: "Removed from Ride",
@@ -314,7 +334,10 @@ export const removeRider = async (req, res) => {
 
     return success(res, { ride }, "Rider removed successfully");
   } catch (err) {
-    logger.error("Remove rider error:", { message: err.message, stack: err.stack });
+    logger.error("Remove rider error:", {
+      message: err.message,
+      stack: err.stack,
+    });
     return error(res, err.message, err.status || 500);
   }
 };
@@ -374,6 +397,20 @@ export const respondToRequest = async (req, res) => {
           : `${req.user.fullName || req.user.username} rejected your ride request`,
       data: { rideId, driverName: req.user.fullName || req.user.username },
     });
+
+    // email notification
+    if (action === "accepted") {
+      await sendRideAcceptedEmail(
+        riderId,
+        req.user.fullName || req.user.username,
+        ride,
+      );
+    } else {
+      await sendRideRejectedEmail(
+        riderId,
+        req.user.fullName || req.user.username,
+      );
+    }
 
     return success(res, { ride }, `Rider ${action} successfully`);
   } catch (err) {
@@ -480,6 +517,13 @@ export const cancelRide = async (req, res) => {
       });
     }
 
+    // email notification
+    await sendRideCancelledEmail(
+      r.userId,
+      req.user.fullName || req.user.username,
+      ride,
+    );
+
     return success(res, { ride }, "Ride cancelled successfully");
   } catch (err) {
     logger.error("Cancel ride error:", {
@@ -561,7 +605,6 @@ export const endRide = async (req, res) => {
   try {
     const { rideId } = req.params;
     const ride = await locationService.endRide(rideId, req.user.sub);
-
 
     const io = req.app.get("io");
     for (const r of ride.riders.filter((r) => r.status === "accepted")) {
