@@ -7,7 +7,7 @@ const rideSchema = new mongoose.Schema(
       userId: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
-        index: true,
+        // index: true,
       },
       username: { type: String },
     },

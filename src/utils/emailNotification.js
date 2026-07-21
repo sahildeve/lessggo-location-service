@@ -8,7 +8,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // ─── Send email helper 
 const sendEmail = async ({ to, subject, html }) => {
   const { error } = await resend.emails.send({
-    from: "LetsGoo <onboarding@resend.dev>",
+    from: "Lessggo <onboarding@resend.dev>",
     to,
     subject,
     html,
@@ -41,14 +41,14 @@ export const sendRideRequestEmail = async (driverUserId, riderName) => {
 
     await sendEmail({
       to: driver.email,
-      subject: "New Ride Request — LetsGoo",
+      subject: "New Ride Request — Lessggo",
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px;">
           <h2 style="color:#1e293b;">New Ride Request 🚗</h2>
           <p>Hi <strong>${driver.fullName || driver.username}</strong>,</p>
           <p><strong>${riderName}</strong> wants to join your ride.</p>
           <p>Open the app to accept or reject the request.</p>
-          <p style="color:#94a3b8;font-size:13px;">LetsGoo Team</p>
+          <p style="color:#94a3b8;font-size:13px;">Lessggo Team</p>
         </div>
       `,
     });
@@ -65,7 +65,7 @@ export const sendRideAcceptedEmail = async (riderUserId, driverName, ride) => {
 
     await sendEmail({
       to: rider.email,
-      subject: "Ride Request Accepted — LetsGoo",
+      subject: "Ride Request Accepted — Lessggo",
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px;">
           <h2 style="color:#16a34a;">Ride Request Accepted ✅</h2>
@@ -74,7 +74,7 @@ export const sendRideAcceptedEmail = async (riderUserId, driverName, ride) => {
           <p>📍 From: <strong>${ride.from.address}</strong></p>
           <p>📍 To: <strong>${ride.to.address}</strong></p>
           <p>🕐 Departure: <strong>${new Date(ride.departureTime).toLocaleString()}</strong></p>
-          <p style="color:#94a3b8;font-size:13px;">LetsGoo Team</p>
+          <p style="color:#94a3b8;font-size:13px;">Lessggo Team</p>
         </div>
       `,
     });
@@ -91,14 +91,14 @@ export const sendRideRejectedEmail = async (riderUserId, driverName) => {
 
     await sendEmail({
       to: rider.email,
-      subject: "Ride Request Update — LetsGoo",
+      subject: "Ride Request Update — Lessggo",
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px;">
           <h2 style="color:#dc2626;">Ride Request Rejected</h2>
           <p>Hi <strong>${rider.fullName || rider.username}</strong>,</p>
           <p>Unfortunately <strong>${driverName}</strong> could not accommodate your request.</p>
-          <p>You can search for other available rides on LetsGoo.</p>
-          <p style="color:#94a3b8;font-size:13px;">LetsGoo Team</p>
+          <p>You can search for other available rides on Lessggo.</p>
+          <p style="color:#94a3b8;font-size:13px;">Lessggo Team</p>
         </div>
       `,
     });
@@ -115,15 +115,15 @@ export const sendRideCancelledEmail = async (riderUserId, driverName, ride) => {
 
     await sendEmail({
       to: rider.email,
-      subject: "Ride Cancelled — LetsGoo",
+      subject: "Ride Cancelled — Lessggo",
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px;">
           <h2 style="color:#dc2626;">Ride Cancelled ❌</h2>
           <p>Hi <strong>${rider.fullName || rider.username}</strong>,</p>
           <p>Your ride from <strong>${ride.from.address}</strong> to <strong>${ride.to.address}</strong> 
           has been cancelled by <strong>${driverName}</strong>.</p>
-          <p>Please search for another ride on LetsGoo.</p>
-          <p style="color:#94a3b8;font-size:13px;">LetsGoo Team</p>
+          <p>Please search for another ride on Lessggo.</p>
+          <p style="color:#94a3b8;font-size:13px;">Lessggo Team</p>
         </div>
       `,
     });
