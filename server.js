@@ -13,14 +13,15 @@ const PORT = process.env.PORT || 3002;
 const start = async () => {
   try {
     await connectDB();
-    startCronJobs() // cheaking expiredrides
 
-    // HTTP server  — Socket.io ke liye zaroori hai
+    // HTTP server — Socket.io ke liye zaroori hai
     const httpServer = http.createServer(app);
 
     // Socket.io initialize karo
     const io = initSocket(httpServer);
     app.set("io", io);
+
+    startCronJobs(io); // ← ab io pass karo, aur io ke baad call karo
 
     httpServer.listen(PORT, () => {
       logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);

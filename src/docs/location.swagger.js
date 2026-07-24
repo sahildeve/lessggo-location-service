@@ -152,7 +152,7 @@ export const locationSwaggerDocs = {
                           },
                           availableSeats: { type: "integer", example: 2 },
                           pricePerSeat: { type: "number", example: 150 },
-                          status: { type: "string", example: "active" },
+                          status: { type: "string", example: "upcoming" },
                         },
                       },
                       interestedUsers: {
@@ -625,13 +625,13 @@ export const locationSwaggerDocs = {
                             status: {
                               type: "string",
                               enum: [
-                                "active",
+                                "upcoming",
                                 "full",
                                 "ongoing",
                                 "completed",
                                 "cancelled",
                               ],
-                              example: "active",
+                              example: "upcoming",
                             },
                           },
                         },
@@ -703,7 +703,7 @@ export const locationSwaggerDocs = {
                                 },
                               },
                             },
-                            status: { type: "string", example: "active" },
+                            status: { type: "string", example: "upcoming" },
                             riders: {
                               type: "array",
                               items: {
@@ -937,7 +937,7 @@ export const locationSwaggerDocs = {
                             type: "string",
                             example: "6a1fb71391ca3b940980581a",
                           },
-                          status: { type: "string", example: "active" },
+                          status: { type: "string", example: "upcoming" },
                         },
                       },
                     },

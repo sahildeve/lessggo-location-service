@@ -24,6 +24,7 @@ const notificationSchema = new mongoose.Schema(
         "invite_rejected",
         "ride_request_withdrawn",
         "ride_expired",
+        "ride_started",
 
         // ─── Community Service — Direct Chat
         "direct_chat_request",

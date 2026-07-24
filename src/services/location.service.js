@@ -104,7 +104,7 @@ export const searchRides = async ({
 
   // Step 2: MongoDB geospatial query — from location ke paas rides
   const rides = await Ride.find({
-    status: "active",
+    status: "upcoming",
     departureTime: { $gte: timeFrom, $lte: timeTo },
     "from.coordinates": {
       $near: {
@@ -184,7 +184,7 @@ export const requestRide = async (
     err.status = 404;
     throw err;
   }
-  if (ride.status !== "active") {
+  if (ride.status !== "upcoming") {
     const err = new Error("Ride is not accepting requests");
     err.status = 400;
     throw err;
@@ -237,7 +237,7 @@ export const inviteRider = async (
     err.status = 403;
     throw err;
   }
-  if (ride.status !== "active") {
+  if (ride.status !== "upcoming") {
     const err = new Error("Ride is not accepting invites");
     err.status = 400;
     throw err;
@@ -320,7 +320,7 @@ export const exitRide = async (rideId, userId) => {
 
   // Seat wapas do
   ride.availableSeats += 1;
-  if (ride.status === "full") ride.status = "active";
+  if (ride.status === "full") ride.status = "upcoming";
 
   // Rider remove karo
   ride.riders.splice(riderIndex, 1);
@@ -361,7 +361,7 @@ export const removeRider = async (rideId, riderId, driverUserId) => {
   // Agar accepted tha toh seat wapas do
   if (riderStatus === "accepted") {
     ride.availableSeats += 1;
-    if (ride.status === "full") ride.status = "active";
+    if (ride.status === "full") ride.status = "upcoming";
   }
 
   ride.riders.splice(riderIndex, 1);
@@ -532,7 +532,7 @@ export const riderRespondToInvite = async (rideId, userId, action) => {
   }
 
   // ← ye add karo
-  if (ride.status !== "active") {
+  if (ride.status !== "upcoming") {
     const err = new Error("Ride is not accepting responses");
     err.status = 400;
     throw err;
@@ -710,7 +710,7 @@ export const withdrawRequest = async (rideId, userId) => {
   if (riderStatus === "accepted") {
     ride.availableSeats += 1;
     if (ride.status === "full") {
-      ride.status = "active";
+      ride.status = "upcoming";
     }
     await redis.srem(`ride_members:${rideId}`, userId);
   }

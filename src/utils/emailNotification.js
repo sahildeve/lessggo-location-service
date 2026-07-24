@@ -4,8 +4,7 @@ import axios from "axios";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-
-// ─── Send email helper 
+// ─── Send email helper
 const sendEmail = async ({ to, subject, html }) => {
   const { error } = await resend.emails.send({
     from: "Lessggo <onboarding@resend.dev>",
@@ -24,7 +23,7 @@ const getUserEmail = async (userId) => {
   try {
     const res = await axios.post(
       `${process.env.AUTH_SERVICE_URL}/api/auth/internal/users/emails`,
-      { userIds: [userId] }
+      { userIds: [userId] },
     );
     return res.data.data.users[0] || null;
   } catch (err) {
@@ -129,5 +128,35 @@ export const sendRideCancelledEmail = async (riderUserId, driverName, ride) => {
     });
   } catch (err) {
     logger.error("Send ride cancelled email error:", { message: err.message });
+  }
+};
+
+// ─── Ride Started — Driver aur Rider dono ko
+export const sendRideStartedEmail = async (userId, ride, role) => {
+  try {
+    const user = await getUserEmail(userId);
+    if (!user) return;
+
+    const roleMessage =
+      role === "driver"
+        ? "Your ride has started. Safe travels!"
+        : "Your ride has started. The driver is on the way!";
+
+    await sendEmail({
+      to: user.email,
+      subject: "Your Ride Has Started — Lessggo",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px;">
+          <h2 style="color:#2563eb;">Ride Started 🚀</h2>
+          <p>Hi <strong>${user.fullName || user.username}</strong>,</p>
+          <p>${roleMessage}</p>
+          <p>📍 From: <strong>${ride.from.address}</strong></p>
+          <p>📍 To: <strong>${ride.to.address}</strong></p>
+          <p style="color:#94a3b8;font-size:13px;">Lessggo Team</p>
+        </div>
+      `,
+    });
+  } catch (err) {
+    logger.error("Send ride started email error:", { message: err.message });
   }
 };

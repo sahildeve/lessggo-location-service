@@ -64,8 +64,8 @@ const rideSchema = new mongoose.Schema(
     // ─── Ride status
     status: {
       type: String,
-      enum: ["active", "full", "ongoing", "completed", "cancelled", "expired"],
-      default: "active",
+      enum: ["upcoming", "full", "ongoing", "completed", "cancelled", "expired"],
+      default: "upcoming",
     },
 
     // ─── Live tracking
