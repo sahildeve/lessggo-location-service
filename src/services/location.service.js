@@ -3,6 +3,7 @@ import Ride from "../models/Ride.js";
 import redis from "../config/redis.js";
 import logger from "../utils/logger.js";
 import SearchRequest from "../models/SearchRequest.js";
+import { getUsersByIds } from "../utils/authServiceClient.js";
 
 // ─── Save Pickup/Dropoff Location
 export const saveLocation = async (
@@ -48,8 +49,15 @@ export const offerRide = async (
     pricePerSeat,
   },
 ) => {
+  // ── Naam auth service se — JWT me profile setup se pehle ka data hota hai
+  const userInfoMap = await getUsersByIds([userId]);
+  const freshUser = userInfoMap[String(userId)];
+
   const ride = await Ride.create({
-    offeredBy: { userId, username: fullName || username || null },
+    offeredBy: {
+      userId,
+      username: freshUser?.fullName ?? fullName ?? username ?? null,
+    },
     from: {
       address: fromAddress,
       city: fromCity,
@@ -137,6 +145,28 @@ export const searchRides = async ({
     return distance <= 10; // 10km ke andar destination
   });
 
+  // ── Ride owners ki info auth service se
+  const userInfoMap = await getUsersByIds(
+    matched.map((r) => r.offeredBy.userId.toString()),
+  );
+
+  const enrichedRides = matched.map((ride) => {
+    const fresh = userInfoMap[ride.offeredBy.userId.toString()];
+    return {
+      ...ride,
+      offeredBy: {
+        userId: ride.offeredBy.userId,
+        username: fresh?.username ?? null,
+        fullName: fresh?.fullName ?? ride.offeredBy.username ?? null,
+        profilePicture: fresh?.profilePicture ?? null,
+        age: fresh?.age ?? null,
+        gender: fresh?.gender ?? null,
+        designation: fresh?.designation ?? null,
+        interests: fresh?.interests ?? [],
+      },
+    };
+  });
+
   // ── Step 4: Search ko save karo — taaki future me ride offer hone pe match ho sake ──
   const searchRequest = await SearchRequest.create({
     userId,
@@ -152,7 +182,7 @@ export const searchRides = async ({
     departureTime,
   });
 
-  return { matched, newSearchRequest: searchRequest };
+  return { matched: enrichedRides, newSearchRequest: searchRequest };
 };
 
 // ─── Haversine Distance Formula
@@ -204,9 +234,13 @@ export const requestRide = async (
     throw err;
   }
 
+  // ── Naam auth service se
+  const userInfoMap = await getUsersByIds([userId]);
+  const freshUser = userInfoMap[String(userId)];
+
   ride.riders.push({
     userId,
-    username: fullName || username || null,
+    username: freshUser?.fullName ?? fullName ?? username ?? null,
     status: "pending",
     pickupLocation: {
       address: pickupAddress,
@@ -761,25 +795,41 @@ export const findInterestedUsers = async ({
     return distance <= 10;
   });
 
-  // Step 3: Sirf zaroori info return karo
-  return matched.map((s) => ({
-    _id: s._id,
-    userId: s.userId,
-    username: s.username,
-    searchedRoute: {
-      from: s.from.address,
-      to: s.to.address,
-      fromCoordinates: {
-        lat: s.from.coordinates.coordinates[1], // ← lat
-        lng: s.from.coordinates.coordinates[0], // ← lng
+  if (!matched.length) return [];
+
+  // Step 3: User info auth service se
+  const userInfoMap = await getUsersByIds(
+    matched.map((s) => s.userId.toString()),
+  );
+
+  return matched.map((s) => {
+    const fresh = userInfoMap[s.userId.toString()];
+
+    return {
+      _id: s._id,
+      userId: s.userId,
+      username: fresh?.username ?? null,
+      fullName: fresh?.fullName ?? s.username ?? null,
+      profilePicture: fresh?.profilePicture ?? null,
+      age: fresh?.age ?? null,
+      gender: fresh?.gender ?? null,
+      designation: fresh?.designation ?? null,
+      interests: fresh?.interests ?? [],
+      searchedRoute: {
+        from: s.from.address,
+        to: s.to.address,
+        fromCoordinates: {
+          lat: s.from.coordinates.coordinates[1],
+          lng: s.from.coordinates.coordinates[0],
+        },
+        toCoordinates: {
+          lat: s.to.coordinates.coordinates[1],
+          lng: s.to.coordinates.coordinates[0],
+        },
       },
-      toCoordinates: {
-        lat: s.to.coordinates.coordinates[1], // ← lat
-        lng: s.to.coordinates.coordinates[0], // ← lng
-      },
-    },
-    searchedAt: s.createdAt,
-  }));
+      searchedAt: s.createdAt,
+    };
+  });
 };
 
 // ─── Get Interested Users for an existing ride (owner only)
@@ -884,7 +934,28 @@ export const getNearbyRidesOrSearches = async (type) => {
       .sort({ departureTime: 1 })
       .lean();
 
-    return rides;
+    if (!rides.length) return [];
+
+    const userInfoMap = await getUsersByIds(
+      rides.map((r) => r.offeredBy.userId.toString()),
+    );
+
+    return rides.map((ride) => {
+      const fresh = userInfoMap[ride.offeredBy.userId.toString()];
+      return {
+        ...ride,
+        offeredBy: {
+          userId: ride.offeredBy.userId,
+          username: fresh?.username ?? null,
+          fullName: fresh?.fullName ?? ride.offeredBy.username ?? null,
+          profilePicture: fresh?.profilePicture ?? null,
+          age: fresh?.age ?? null,
+          gender: fresh?.gender ?? null,
+          designation: fresh?.designation ?? null,
+          interests: fresh?.interests ?? [],
+        },
+      };
+    });
   }
 
   if (type === "search") {
@@ -895,7 +966,25 @@ export const getNearbyRidesOrSearches = async (type) => {
       .sort({ departureTime: 1 })
       .lean();
 
-    return searches;
+    if (!searches.length) return [];
+
+    const userInfoMap = await getUsersByIds(
+      searches.map((s) => s.userId.toString()),
+    );
+
+    return searches.map((s) => {
+      const fresh = userInfoMap[s.userId.toString()];
+      return {
+        ...s,
+        username: fresh?.username ?? null,
+        fullName: fresh?.fullName ?? s.username ?? null,
+        profilePicture: fresh?.profilePicture ?? null,
+        age: fresh?.age ?? null,
+        gender: fresh?.gender ?? null,
+        designation: fresh?.designation ?? null,
+        interests: fresh?.interests ?? [],
+      };
+    });
   }
 
   const err = new Error("Invalid type — must be 'offer' or 'search'");
