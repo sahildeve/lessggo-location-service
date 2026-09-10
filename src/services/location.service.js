@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Location from "../models/Location.js";
 import Ride from "../models/Ride.js";
 import redis from "../config/redis.js";
@@ -622,6 +623,12 @@ export const riderRespondToInvite = async (rideId, userId, action) => {
 
 // ─── Get Ride
 export const getRide = async (rideId) => {
+  if (!mongoose.Types.ObjectId.isValid(rideId)) {
+    const err = new Error("Invalid ride id");
+    err.status = 400;
+    throw err;
+  }
+
   const ride = await Ride.findById(rideId).lean();
   if (!ride) {
     const err = new Error("Ride not found");
