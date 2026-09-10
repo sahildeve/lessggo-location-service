@@ -4,6 +4,7 @@ import { success, error } from "../utils/response.js";
 import logger from "../utils/logger.js";
 import { createNotification } from "../utils/notification.js";
 import { getDisplayName } from "../utils/displayName.js";
+import { getUsersByIds } from "../utils/authServiceClient.js";
 import {
   sendRideRequestEmail,
   sendRideAcceptedEmail,
@@ -50,10 +51,23 @@ export const offerRide = async (req, res) => {
 
     const io = req.app.get("io");
     if (io) {
+      const offererMap = await getUsersByIds([req.user.sub]);
+      const offerer = offererMap[String(req.user.sub)];
+
+      const offeredByFull = {
+        userId: req.user.sub,
+        fullName: offerer?.fullName ?? null,
+        profilePicture: offerer?.profilePicture ?? null,
+        age: offerer?.age ?? null,
+        gender: offerer?.gender ?? null,
+        designation: offerer?.designation ?? null,
+        interests: offerer?.interests ?? [],
+      };
+
       interestedUsers.forEach((user) => {
         io.to(`searching:${user.userId}`).emit("new_ride_available", {
           rideId: ride._id,
-          offeredBy: ride.offeredBy,
+          offeredBy: offeredByFull,
           from: ride.from,
           to: ride.to,
           departureTime: ride.departureTime,
@@ -66,7 +80,7 @@ export const offerRide = async (req, res) => {
       // ── Nearby feed watchers ko bhi notify karo
       io.to("nearby_feed_watchers").emit("new_offer_posted", {
         rideId: ride._id,
-        offeredBy: ride.offeredBy,
+        offeredBy: offeredByFull,
         from: ride.from,
         to: ride.to,
         departureTime: ride.departureTime,
@@ -101,11 +115,25 @@ export const searchRides = async (req, res) => {
 
     const io = req.app.get("io");
     if (io && newSearchRequest) {
-      matched.forEach((ride) => {
+      matched.forEach(async (ride) => {
+        const searcherMap = await getUsersByIds([req.user.sub]);
+        const searcher = searcherMap[String(req.user.sub)];
+
+        const searcherFull = {
+          userId: req.user.sub,
+          fullName: searcher?.fullName ?? null,
+          profilePicture: searcher?.profilePicture ?? null,
+          age: searcher?.age ?? null,
+          gender: searcher?.gender ?? null,
+          designation: searcher?.designation ?? null,
+          interests: searcher?.interests ?? [],
+        };
+
         io.to(`watching:${ride._id}`).emit("new_interested_user", {
           searchRequestId: newSearchRequest._id,
           userId: req.user.sub,
-          username: getDisplayName(req.user),
+          username: searcher?.fullName ?? getDisplayName(req.user),
+          user: searcherFull,
           searchedRoute: {
             from: newSearchRequest.from.address,
             to: newSearchRequest.to.address,
@@ -162,12 +190,25 @@ export const requestRide = async (req, res) => {
     const io = req.app.get("io");
     const rider = ride.riders.find((r) => r.userId.toString() === req.user.sub);
     if (io && rider) {
+      const riderInfoMap = await getUsersByIds([req.user.sub]);
+      const riderInfo = riderInfoMap[String(req.user.sub)];
+
       io.to(`user:${ride.offeredBy.userId.toString()}`).emit(
         "incoming_ride_request",
         {
           rideId: ride._id.toString(),
           riderId: req.user.sub,
-          riderName: rider.username || getDisplayName(req.user),
+          riderName:
+            riderInfo?.fullName ?? rider.username ?? getDisplayName(req.user),
+          rider: {
+            userId: req.user.sub,
+            fullName: riderInfo?.fullName ?? null,
+            profilePicture: riderInfo?.profilePicture ?? null,
+            age: riderInfo?.age ?? null,
+            gender: riderInfo?.gender ?? null,
+            designation: riderInfo?.designation ?? null,
+            interests: riderInfo?.interests ?? [],
+          },
           role: "passenger",
           fromLocation: rider.pickupLocation?.address || req.body.pickupAddress,
           toLocation: ride.to?.address,
@@ -193,10 +234,7 @@ export const requestRide = async (req, res) => {
     });
 
     // email notification
-    await sendRideRequestEmail(
-      ride.offeredBy.userId,
-      getDisplayName(req.user),
-    );
+    await sendRideRequestEmail(ride.offeredBy.userId, getDisplayName(req.user));
 
     return success(res, { ride }, "Ride request sent successfully");
   } catch (err) {
@@ -224,10 +262,22 @@ export const inviteRider = async (req, res) => {
     // Socket notification — invited user ko batao
     const io = req.app.get("io");
     if (io) {
+      const infoMap = await getUsersByIds([req.user.sub]);
+      const info = infoMap[String(req.user.sub)];
+
       io.to(`user:${toUserId}`).emit("ride_invite_received", {
         rideId,
         fromUserId: req.user.sub,
-        fromUsername: getDisplayName(req.user),
+        fromUsername: info?.fullName ?? getDisplayName(req.user),
+        from: {
+          userId: req.user.sub,
+          fullName: info?.fullName ?? null,
+          profilePicture: info?.profilePicture ?? null,
+          age: info?.age ?? null,
+          gender: info?.gender ?? null,
+          designation: info?.designation ?? null,
+          interests: info?.interests ?? [],
+        },
         message: "You have been invited to join this ride",
       });
     }
@@ -423,16 +473,9 @@ export const respondToRequest = async (req, res) => {
 
     // email notification
     if (action === "accepted") {
-      await sendRideAcceptedEmail(
-        riderId,
-        getDisplayName(req.user),
-        ride,
-      );
+      await sendRideAcceptedEmail(riderId, getDisplayName(req.user), ride);
     } else {
-      await sendRideRejectedEmail(
-        riderId,
-        getDisplayName(req.user),
-      );
+      await sendRideRejectedEmail(riderId, getDisplayName(req.user));
     }
 
     return success(res, { ride }, `Rider ${action} successfully`);
@@ -540,11 +583,7 @@ export const cancelRide = async (req, res) => {
       });
 
       // email notification
-      await sendRideCancelledEmail(
-        r.userId,
-        getDisplayName(req.user),
-        ride,
-      );
+      await sendRideCancelledEmail(r.userId, getDisplayName(req.user), ride);
     }
 
     return success(res, { ride }, "Ride cancelled successfully");
@@ -573,7 +612,8 @@ export const withdrawRequest = async (req, res) => {
         "ride_request_withdrawn",
         {
           userId: req.user.sub,
-          username: getDisplayName(req.user),
+          username: searcher?.fullName ?? getDisplayName(req.user),
+          user: searcherFull,
           rideId,
           wasAccepted: riderStatus === "accepted",
           availableSeats: ride.availableSeats,

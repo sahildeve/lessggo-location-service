@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import * as locationService from "./services/location.service.js";
+import { getUsersByIds } from "./utils/authServiceClient.js";
 import logger from "./utils/logger.js";
 
 const initSocket = (httpServer) => {
@@ -32,9 +33,22 @@ const initSocket = (httpServer) => {
   });
 
   // ─── Connection
-  io.on("connection", (socket) => {
-    logger.info(`User connected: ${socket.user.username}`);
+  io.on("connection", async (socket) => {
     socket.join(`user:${socket.user.sub}`);
+
+    // ─── User info ek baar fetch, poore connection ke liye cache
+    socket.userInfo = null;
+    try {
+      const map = await getUsersByIds([socket.user.sub]);
+      socket.userInfo = map[String(socket.user.sub)] ?? null;
+    } catch {
+      // Fetch fail ho to JWT wala data fallback rahega
+    }
+
+    const displayName =
+      socket.userInfo?.fullName ?? socket.user.username ?? "Lessggo user";
+
+    logger.info(`User connected: ${displayName}`);
 
     // ─── Join Ride Room
     socket.on("join_ride", async (payload) => {
@@ -45,12 +59,12 @@ const initSocket = (httpServer) => {
         }
 
         socket.join(rideId); // user us ride ke room me join ho gaya
-        logger.info(`${socket.user.username} joined ride room: ${rideId}`);
+        logger.info(`${displayName} joined ride room: ${rideId}`);
 
         // Room me baaki sabko batao naya user aaya
         socket.to(rideId).emit("user_joined", {
           userId: socket.user.sub,
-          username: socket.user.username,
+          username: displayName,
         });
       } catch (err) {
         logger.error("Join ride error:", err.message);
@@ -72,7 +86,7 @@ const initSocket = (httpServer) => {
         // Room me baaki sabko broadcast karo
         socket.to(rideId).emit("user_location_updated", {
           userId: socket.user.sub,
-          username: socket.user.username,
+          username: displayName,
           lat,
           lng,
           timestamp: new Date(),
@@ -104,20 +118,18 @@ const initSocket = (httpServer) => {
     // ─── Leave Ride Room
     socket.on("leave_ride", (rideId) => {
       socket.leave(rideId);
-      logger.info(`${socket.user.username} left ride room: ${rideId}`);
+      logger.info(`${displayName} left ride room: ${rideId}`);
 
       socket.to(rideId).emit("user_left", {
         userId: socket.user.sub,
-        username: socket.user.username,
+        username: displayName,
       });
     });
 
     // ─── Driver: Interested users watch krega
     socket.on("watch_interested_users", (rideId) => {
       socket.join(`watching:${rideId}`);
-      logger.info(
-        `${socket.user.username} watching interested users for: ${rideId}`,
-      );
+      logger.info(`${displayName} watching interested users for: ${rideId}`);
     });
 
     socket.on("unwatch_interested_users", (rideId) => {
@@ -128,7 +140,7 @@ const initSocket = (httpServer) => {
     socket.on("watch_new_rides", ({ fromLat, fromLng, toLat, toLng }) => {
       socket.searchCriteria = { fromLat, fromLng, toLat, toLng };
       socket.join(`searching:${socket.user.sub}`);
-      logger.info(`${socket.user.username} watching new rides`);
+      logger.info(`${displayName} watching new rides`);
     });
 
     socket.on("unwatch_new_rides", () => {
@@ -139,7 +151,7 @@ const initSocket = (httpServer) => {
     // ─── Nearby Feed — Watch all offers/searches (real-time)
     socket.on("watch_nearby_feed", () => {
       socket.join("nearby_feed_watchers");
-      logger.info(`${socket.user.username} watching nearby feed`);
+      logger.info(`${displayName} watching nearby feed`);
     });
 
     socket.on("unwatch_nearby_feed", () => {
@@ -148,7 +160,7 @@ const initSocket = (httpServer) => {
 
     // ─── Disconnect
     socket.on("disconnect", () => {
-      logger.info(`User disconnected: ${socket.user.username}`);
+      logger.info(`User disconnected: ${displayName}`);
     });
   });
 
