@@ -490,6 +490,71 @@ export const locationSwaggerDocs = {
     },
   },
 
+    "/api/location/ride/my-search-requests": {
+    get: {
+      summary: "Get my search requests (find ride)",
+      description:
+        "User ke apne route searches. Auto-expire after 24 hours.",
+      tags: ["Location"],
+      security: [{ bearerAuth: [] }],
+      responses: {
+        200: {
+          description: "Search requests fetched successfully",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: { type: "boolean", example: true },
+                  data: {
+                    type: "object",
+                    properties: {
+                      searchRequests: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            searchRequestId: { type: "string" },
+                            from: {
+                              type: "object",
+                              properties: {
+                                address: { type: "string" },
+                                lat: { type: "number" },
+                                lng: { type: "number" },
+                              },
+                            },
+                            to: {
+                              type: "object",
+                              properties: {
+                                address: { type: "string" },
+                                lat: { type: "number" },
+                                lng: { type: "number" },
+                              },
+                            },
+                            departureTime: {
+                              type: "string",
+                              format: "date-time",
+                            },
+                            createdAt: {
+                              type: "string",
+                              format: "date-time",
+                            },
+                          },
+                        },
+                      },
+                      count: { type: "integer", example: 2 },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        401: { description: "Unauthorized" },
+      },
+    },
+  },
+
   "/api/location/ride/{rideId}/interested-users": {
     get: {
       summary: "Get users who searched this route (owner only)",

@@ -815,3 +815,24 @@ export const getNearbyRidesOrSearches = async (req, res) => {
     return error(res, err.message, err.status || 500);
   }
 };
+
+// ─── Get My Search Requests (find ride)
+export const getMySearchRequests = async (req, res) => {
+  try {
+    const searchRequests = await locationService.getMySearchRequests(
+      req.user.sub,
+    );
+
+    return success(
+      res,
+      { searchRequests, count: searchRequests.length },
+      "My search requests fetched successfully",
+    );
+  } catch (err) {
+    logger.error("Get my search requests error:", {
+      message: err.message,
+      stack: err.stack,
+    });
+    return error(res, err.message, err.status || 500);
+  }
+};

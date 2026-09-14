@@ -998,3 +998,26 @@ export const getNearbyRidesOrSearches = async (type) => {
   err.status = 400;
   throw err;
 };
+
+// ─── Get My Search Requests (user ne jo route search kiye — find ride)
+export const getMySearchRequests = async (userId) => {
+  const searches = await SearchRequest.find({ userId })
+    .sort({ departureTime: -1, createdAt: -1 })
+    .lean();
+
+  return searches.map((s) => ({
+    searchRequestId: s._id,
+    from: {
+      address: s.from.address,
+      lat: s.from.coordinates.coordinates[1],
+      lng: s.from.coordinates.coordinates[0],
+    },
+    to: {
+      address: s.to.address,
+      lat: s.to.coordinates.coordinates[1],
+      lng: s.to.coordinates.coordinates[0],
+    },
+    departureTime: s.departureTime,
+    createdAt: s.createdAt,
+  }));
+};

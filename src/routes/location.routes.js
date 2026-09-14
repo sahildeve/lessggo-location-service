@@ -32,6 +32,7 @@ import {
   riderRespondToInvite,
   getRidePastSuggesstion,
   getNearbyRidesOrSearches,
+  getMySearchRequests,
 } from "../controllers/location.controller.js";
 
 const router = Router();
@@ -48,6 +49,7 @@ router.get("/ride/nearby", protect, getNearbyRidesOrSearches);
 // ─── Rides of a User
 router.get("/ride/my-rides", protect, getMyRides);
 router.get("/ride/my-requests", protect, getMyRequests);
+router.get("/ride/my-search-requests", protect, getMySearchRequests);
 router.get("/ride/my-chats", protect, getMyChats);
 
 router.get("/ride/:rideId/interested-users", protect, getInterestedUsers);
@@ -60,7 +62,11 @@ router.post(
   requestRide,
 );
 router.post("/ride/:rideId/invite", protect, inviteRider); //333333
-router.patch("/ride/:rideId/withdrawInvite/:toUserId", protect, withdrawInviteByDriver); //22222222
+router.patch(
+  "/ride/:rideId/withdrawInvite/:toUserId",
+  protect,
+  withdrawInviteByDriver,
+); //22222222
 router.patch(
   "/ride/:rideId/respond",
   protect,
@@ -69,7 +75,7 @@ router.patch(
 );
 router.patch("/ride/:rideId/respond-invite", protect, riderRespondToInvite);
 
-router.get("/ride/past-suggestedrides", protect, getRidePastSuggesstion)
+router.get("/ride/past-suggestedrides", protect, getRidePastSuggesstion);
 
 // ─── Ride Details & Tracking
 router.get("/ride/:rideId", protect, getRide);
