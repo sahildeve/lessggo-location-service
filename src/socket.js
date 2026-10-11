@@ -6,6 +6,7 @@ import logger from "./utils/logger.js";
 
 const initSocket = (httpServer) => {
   const io = new Server(httpServer, {
+    path: "/api/location/socket.io",
     cors: {
       origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
       credentials: true,
