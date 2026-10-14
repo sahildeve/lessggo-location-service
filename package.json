@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google-cloud/pubsub": "^6.3.0",
     "@sentry/node": "^10.58.0",
     "amqplib": "^2.0.1",
     "axios": "^1.16.1",
