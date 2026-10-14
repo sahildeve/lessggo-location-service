@@ -9,6 +9,7 @@ import {
   sendRideRejectedEmail,
   sendRideCancelledEmail,
 } from "../utils/emailNotification.js";
+import * as locationService from "../services/location.service.js";
 
 const SUBSCRIPTION_NAME =
   process.env.LOCATION_EVENTS_SUB || "location-events-sub";
@@ -67,7 +68,6 @@ export const startLocationSubscriber = (io) => {
             });
           }
         }
-
 
         // 2. RIDE_SEARCHED
         if (eventType === "RIDE_SEARCHED") {
@@ -171,7 +171,7 @@ export const startLocationSubscriber = (io) => {
 
           await sendRideRequestEmail(driverId, fallbackName);
         }
- 
+
         // 4. RIDE_INVITE_SENT
         if (eventType === "RIDE_INVITE_SENT") {
           const { rideId, fromUserId, fallbackName, toUserId } = payload;
@@ -205,7 +205,6 @@ export const startLocationSubscriber = (io) => {
             data: { rideId, fromUserId },
           });
         }
-
 
         // 5. RIDE_INVITE_WITHDRAWN
         if (eventType === "RIDE_INVITE_WITHDRAWN") {
@@ -475,6 +474,22 @@ export const startLocationSubscriber = (io) => {
               data: { rideId },
             });
           }
+        }
+
+        // ============================================
+        // 13. SAVE_USER_LIVE_LOCATION (From Gateway Socket)
+        // ============================================
+        if (eventType === "SAVE_USER_LIVE_LOCATION") {
+          const { userId, rideId, lat, lng } = payload;
+          await locationService.saveUserLiveLocation(userId, rideId, lat, lng);
+        }
+
+        // ============================================
+        // 14. SAVE_CAB_LIVE_LOCATION (From Gateway Socket)
+        // ============================================
+        if (eventType === "SAVE_CAB_LIVE_LOCATION") {
+          const { rideId, lat, lng } = payload;
+          await locationService.updateCabLocation(rideId, lat, lng);
         }
 
         // Acknowledge message
