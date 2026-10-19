@@ -11,6 +11,9 @@ import {
 } from "../utils/emailNotification.js";
 import * as locationService from "../services/location.service.js";
 
+import Location from "../models/Location.js";
+import redis from "../config/redis.js";
+
 const SUBSCRIPTION_NAME =
   process.env.LOCATION_EVENTS_SUB || "location-events-sub";
 
@@ -490,6 +493,21 @@ export const startLocationSubscriber = (io) => {
         if (eventType === "SAVE_CAB_LIVE_LOCATION") {
           const { rideId, lat, lng } = payload;
           await locationService.updateCabLocation(rideId, lat, lng);
+        }
+
+        // ── 3. USER_DELETED (Wipe out tracking data) ──
+        if (eventType === "USER_DELETED") {
+          const { userId } = payload;
+
+          // 1. Database se past location history delete karo
+          await LocationHistory.deleteMany({ userId: userId });
+
+          // 2. Agar Redis mein live location save hoti hai, usko clear karo (Example key)
+          await redis.del(`user_location:${userId}`);
+
+          logger.info(
+            `Wiped out all location history & live tracking data for deleted user: ${userId}`,
+          );
         }
 
         // Acknowledge message
