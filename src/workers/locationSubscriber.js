@@ -1,6 +1,11 @@
 import pubsub from "../config/pubsub.js";
 import logger from "../utils/logger.js";
 import { handleSubscriberError } from "../utils/subscriberError.js";
+import {
+  alreadyProcessed,
+  markProcessed,
+  releaseProcessed,
+} from "../utils/messageDedupe.js";
 import { createNotification } from "../utils/notification.js";
 import { getUsersByIds } from "../utils/authServiceClient.js";
 import * as chatServiceClient from "../utils/chatServiceClient.js";
@@ -18,6 +23,9 @@ import redis from "../config/redis.js";
 const SUBSCRIPTION_NAME =
   process.env.LOCATION_EVENTS_SUB || "location-events-sub";
 
+// Dedupe claim aur release dono me same hona chahiye
+const SUBSCRIBER_CONTEXT = "location-service:locationSubscriber";
+
 export const startLocationSubscriber = (io) => {
   try {
     const subscription = pubsub.subscription(SUBSCRIPTION_NAME);
@@ -26,6 +34,15 @@ export const startLocationSubscriber = (io) => {
       try {
         const parsedData = JSON.parse(message.data.toString());
         const { eventType, payload } = parsedData;
+
+        // ── Duplicate delivery (Pub/Sub at-least-once) — pehle hi process ho chuka
+        if (await alreadyProcessed(message.id, SUBSCRIBER_CONTEXT)) {
+          logger.info(
+            `Skipped duplicate location event: ${eventType} (MsgID: ${message.id})`,
+          );
+          message.ack();
+          return;
+        }
 
         // ============================================
         // 1. RIDE_OFFERED
@@ -513,16 +530,14 @@ export const startLocationSubscriber = (io) => {
 
         // Acknowledge message
         message.ack();
+        await markProcessed(message.id, SUBSCRIBER_CONTEXT);
         logger.info(
           `Processed location event: ${eventType} (MsgID: ${message.id})`,
         );
       } catch (err) {
-        handleSubscriberError(
-          message,
-          err,
-          logger,
-          "location-service:locationSubscriber",
-        );
+        // Fail hua — claim hata do, warna retry duplicate samajh ke skip ho jayega
+        await releaseProcessed(message.id, SUBSCRIBER_CONTEXT);
+        handleSubscriberError(message, err, logger, SUBSCRIBER_CONTEXT);
       }
     });
 
