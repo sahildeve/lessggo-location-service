@@ -23,6 +23,11 @@ const start = async () => {
     app.set("io", io);
 
     startLocationSubscriber(io);
+    // auth-events topic ka USER_DELETED — alag subscription, same handler
+    startLocationSubscriber(
+      io,
+      process.env.USER_DELETED_SUB || "location-user-deleted-sub",
+    );
 
     startCronJobs(io); 
 

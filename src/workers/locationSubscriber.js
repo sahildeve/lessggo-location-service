@@ -29,9 +29,11 @@ const SUBSCRIPTION_NAME =
 // Dedupe claim aur release dono me same hona chahiye
 const SUBSCRIBER_CONTEXT = "location-service:locationSubscriber";
 
-export const startLocationSubscriber = (io) => {
+// subscriptionName param — same handler do subscriptions pe chalta hai
+// (location-events + auth-events ka USER_DELETED); eventType pe branch karta hai
+export const startLocationSubscriber = (io, subscriptionName = SUBSCRIPTION_NAME) => {
   try {
-    const subscription = pubsub.subscription(SUBSCRIPTION_NAME);
+    const subscription = pubsub.subscription(subscriptionName);
 
     subscription.on("message", async (message) => {
       try {
@@ -618,11 +620,12 @@ export const startLocationSubscriber = (io) => {
 
     subscription.on("error", (error) => {
       logger.error("Location Pub/Sub subscription error:", {
+        subscription: subscriptionName,
         message: error.message,
       });
     });
 
-    logger.info(`Location Subscriber listening on ${SUBSCRIPTION_NAME}`);
+    logger.info(`Location Subscriber listening on ${subscriptionName}`);
   } catch (err) {
     logger.error("Failed to start Location Subscriber:", {
       message: err.message,
