@@ -1,5 +1,6 @@
 import pubsub from "../config/pubsub.js";
 import logger from "../utils/logger.js";
+import { handleSubscriberError } from "../utils/subscriberError.js";
 import { createNotification } from "../utils/notification.js";
 import { getUsersByIds } from "../utils/authServiceClient.js";
 import * as chatServiceClient from "../utils/chatServiceClient.js";
@@ -516,10 +517,12 @@ export const startLocationSubscriber = (io) => {
           `Processed location event: ${eventType} (MsgID: ${message.id})`,
         );
       } catch (err) {
-        logger.error(
-          `Error processing Location Pub/Sub message: ${err.message}`,
+        handleSubscriberError(
+          message,
+          err,
+          logger,
+          "location-service:locationSubscriber",
         );
-        message.nack();
       }
     });
 
