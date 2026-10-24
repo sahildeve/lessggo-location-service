@@ -18,6 +18,9 @@ import {
 import * as locationService from "../services/location.service.js";
 
 import Location from "../models/Location.js";
+import Ride from "../models/Ride.js";
+import SearchRequest from "../models/SearchRequest.js";
+import Notification from "../models/Notification.js";
 import redis from "../config/redis.js";
 
 const SUBSCRIPTION_NAME =
@@ -514,17 +517,89 @@ export const startLocationSubscriber = (io) => {
         }
 
         // ── 3. USER_DELETED (Wipe out tracking data) ──
+        // Rule: personal data → delete; user ki banayi rides → rakho, anonymize + cancel;
+        // dusron ki rides me user ki entry → hatao
         if (eventType === "USER_DELETED") {
           const { userId } = payload;
+          const tag = `[USER_DELETED ${userId}]`;
 
-          // 1. Database se past location history delete karo
-          await LocationHistory.deleteMany({ userId: userId });
+          // Sirf ye statuses cancel honge — completed/expired rides dusre riders
+          // ki history hain, unka status mat badlo
+          const activeStatuses = ["upcoming", "full", "ongoing"];
 
-          // 2. Agar Redis mein live location save hoti hai, usko clear karo (Example key)
-          await redis.del(`user_location:${userId}`);
+          // Ride ids pehle nikaal lo — $pull ke baad rider wali rides match nahi hongi
+          const ownActiveRideIds = await Ride.distinct("_id", {
+            "offeredBy.userId": userId,
+            status: { $in: activeStatuses },
+          });
+          const joinedRideIds = await Ride.distinct("_id", {
+            "riders.userId": userId,
+          });
+
+          // 6. Redis: user cache + ride membership. Cancelled rides ka poora set
+          //    delete (jaise cancelRide karta hai), joined rides se sirf user SREM.
+          //    Mongo updates se PEHLE — Redis fail hua toh retry pe ride ids wahi
+          //    milenge; baad me chalate toh retry pe distinct() khaali aata
+          const pipeline = redis.pipeline();
+          pipeline.del(`user_info:${userId}`, `user_location:${userId}`);
+          ownActiveRideIds.forEach((id) => pipeline.del(`ride_members:${id}`));
+          joinedRideIds.forEach((id) =>
+            pipeline.srem(`ride_members:${id}`, userId),
+          );
+          const results = await pipeline.exec();
+          // Pipeline per-command errors throw nahi karta — khud check karo taaki retry ho
+          const redisError = (results || []).find(([e]) => e)?.[0];
+          if (redisError) throw redisError;
+          logger.info(
+            `${tag} Redis cleared: user cache, ${ownActiveRideIds.length} ride_members sets deleted, removed from ${joinedRideIds.length} ride_members sets`,
+          );
+
+          // 1. Saved pickup/dropoff addresses + live GPS — pura personal data
+          const locations = await Location.deleteMany({ userId });
+          logger.info(`${tag} Location deleted: ${locations.deletedCount}`);
+
+          // 2. Search requests (ghar/office ke exact coordinates)
+          const searches = await SearchRequest.deleteMany({ userId });
+          logger.info(`${tag} SearchRequest deleted: ${searches.deletedCount}`);
+
+          // 3. User ki notifications
+          const notifications = await Notification.deleteMany({ userId });
+          logger.info(
+            `${tag} Notification deleted: ${notifications.deletedCount}`,
+          );
+
+          // 4. User ki apni rides — delete nahi (dusre riders ki history), anonymize.
+          //    Saari rides (completed/expired bhi): GPS trail + live location clear —
+          //    har 3-5 sec ka timestamped point = minute-by-minute movement record.
+          //    from/to address rakho — dusre riders ke liye ride ka context hai
+          const anonymized = await Ride.updateMany(
+            { "offeredBy.userId": userId },
+            {
+              $set: {
+                "offeredBy.username": "Deleted User",
+                routeCoordinates: [],
+                cabLiveLocation: { type: "Point", coordinates: [0, 0] },
+              },
+            },
+          );
+          logger.info(`${tag} Own rides anonymized: ${anonymized.modifiedCount}`);
+
+          //    …aur jo abhi active hain unhe cancel
+          const cancelled = await Ride.updateMany(
+            { _id: { $in: ownActiveRideIds } },
+            { $set: { status: "cancelled" } },
+          );
+          logger.info(`${tag} Own active rides cancelled: ${cancelled.modifiedCount}`);
+
+          // 5. Dusron ki rides se rider entry hatao (pickupLocation = aksar ghar ka address)
+          const pulled = await Ride.updateMany(
+            { "riders.userId": userId },
+            { $pull: { riders: { userId } } },
+          );
+          logger.info(`${tag} Rider entries removed from rides: ${pulled.modifiedCount}`);
 
           logger.info(
-            `Wiped out all location history & live tracking data for deleted user: ${userId}`,
+            `Wiped out all location data for deleted user: ${userId}`,
           );
         }
 
