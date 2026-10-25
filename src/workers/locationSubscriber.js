@@ -544,7 +544,9 @@ export const startLocationSubscriber = (io, subscriptionName = SUBSCRIPTION_NAME
           //    milenge; baad me chalate toh retry pe distinct() khaali aata
           const pipeline = redis.pipeline();
           pipeline.del(`user_info:${userId}`, `user_location:${userId}`);
-          ownActiveRideIds.forEach((id) => pipeline.del(`ride_members:${id}`));
+          ownActiveRideIds.forEach((id) =>
+            pipeline.del(`ride_members:${id}`, `ride_driver:${id}`),
+          );
           joinedRideIds.forEach((id) =>
             pipeline.srem(`ride_members:${id}`, userId),
           );

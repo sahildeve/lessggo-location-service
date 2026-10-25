@@ -76,6 +76,8 @@ export const offerRide = async (
 
   await redis.sadd(`ride_members:${ride._id}`, userId);
   await redis.expire(`ride_members:${ride._id}`, 86400 * 7); // 7 days
+  // Gateway ke paas DB nahi — driver Redis se pata chale. ride_members ke saath expire
+  await redis.set(`ride_driver:${ride._id}`, String(userId), "EX", 86400 * 7);
 
   // ── Interested users dhundo jinhone ye route search kiya tha
   const interestedUsers = await findInterestedUsers({
@@ -545,6 +547,7 @@ export const respondToRequest = async (
   if (action === "accepted") {
     await redis.sadd(`ride_members:${rideId}`, riderId);
     await redis.expire(`ride_members:${rideId}`, 86400 * 7);
+    await redis.expire(`ride_driver:${rideId}`, 86400 * 7);
   } else if (action === "rejected" && previousStatus === "accepted") {
     await redis.srem(`ride_members:${rideId}`, riderId);
   }
@@ -610,6 +613,7 @@ export const riderRespondToInvite = async (rideId, userId, action) => {
   if (action === "accepted") {
     await redis.sadd(`ride_members:${rideId}`, userId);
     await redis.expire(`ride_members:${rideId}`, 86400 * 7);
+    await redis.expire(`ride_driver:${rideId}`, 86400 * 7);
 
     const acceptedCount = ride.riders.filter(
       (r) => r.status === "accepted",
@@ -696,7 +700,7 @@ export const endRide = async (rideId, userId) => {
   await ride.save();
 
   // Redis se members delete karo
-  await redis.del(`ride_members:${rideId}`);
+  await redis.del(`ride_members:${rideId}`, `ride_driver:${rideId}`);
 
   return ride;
 };
@@ -725,7 +729,7 @@ export const cancelRide = async (rideId, userId) => {
   await ride.save();
 
   // Redis se members delete
-  await redis.del(`ride_members:${rideId}`);
+  await redis.del(`ride_members:${rideId}`, `ride_driver:${rideId}`);
 
   return ride;
 };

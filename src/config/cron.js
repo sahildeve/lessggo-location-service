@@ -81,7 +81,7 @@ export const startCronJobs = (io) => {
           ride.status = "expired";
           await ride.save();
 
-          await redis.del(`ride_members:${ride._id}`);
+          await redis.del(`ride_members:${ride._id}`, `ride_driver:${ride._id}`);
 
           if (io) {
             io.to(`user:${ride.offeredBy.userId.toString()}`).emit(
@@ -117,7 +117,7 @@ export const startCronJobs = (io) => {
         ride.status = "expired";
         await ride.save();
 
-        await redis.del(`ride_members:${ride._id}`);
+        await redis.del(`ride_members:${ride._id}`, `ride_driver:${ride._id}`);
 
         const expiredPayload = {
           rideId: ride._id,
