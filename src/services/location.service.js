@@ -153,10 +153,11 @@ export const searchRides = async ({
     matched.map((r) => r.offeredBy.userId.toString()),
   );
 
+  // ── Raw ride spread mat karo — riders[] me sabke pickupLocation hain (LOC-15)
   const enrichedRides = matched.map((ride) => {
     const fresh = userInfoMap[ride.offeredBy.userId.toString()];
     return {
-      ...ride,
+      _id: ride._id,
       offeredBy: {
         userId: ride.offeredBy.userId,
         username: fresh?.username ?? null,
@@ -167,6 +168,14 @@ export const searchRides = async ({
         designation: fresh?.designation ?? null,
         interests: fresh?.interests ?? [],
       },
+      from: ride.from,
+      to: ride.to,
+      departureTime: ride.departureTime,
+      availableSeats: ride.availableSeats,
+      pricePerSeat: ride.pricePerSeat,
+      status: ride.status,
+      riderCount: (ride.riders || []).filter((r) => r.status === "accepted")
+        .length,
     };
   });
 
@@ -626,7 +635,7 @@ export const riderRespondToInvite = async (rideId, userId, action) => {
 };
 
 // ─── Get Ride
-export const getRide = async (rideId) => {
+export const getRide = async (rideId, userId) => {
   if (!mongoose.Types.ObjectId.isValid(rideId)) {
     const err = new Error("Invalid ride id");
     err.status = 400;
@@ -639,11 +648,51 @@ export const getRide = async (rideId) => {
     err.status = 404;
     throw err;
   }
-  return ride;
+
+  // ── Driver aur accepted riders ko poori ride (LOC-2)
+  const isDriver = ride.offeredBy.userId.toString() === String(userId);
+  const isMember = (ride.riders || []).some(
+    (r) => r.userId.toString() === String(userId) && r.status === "accepted",
+  );
+  if (isDriver || isMember) return ride;
+
+  // ── Baaki sab ko public view — riders ke pickup, GPS trail, live location nahi
+  return {
+    _id: ride._id,
+    offeredBy: ride.offeredBy,
+    from: ride.from,
+    to: ride.to,
+    departureTime: ride.departureTime,
+    availableSeats: ride.availableSeats,
+    pricePerSeat: ride.pricePerSeat,
+    status: ride.status,
+    riderCount: (ride.riders || []).filter((r) => r.status === "accepted")
+      .length,
+  };
 };
 
 // ─── Update Cab Live Location
-export const updateCabLocation = async (rideId, lat, lng) => {
+export const updateCabLocation = async (rideId, lat, lng, userId) => {
+  // ── Sirf driver, aur sirf active ride pe GPS (LOC-3)
+  const existing = await Ride.findById(rideId)
+    .select("offeredBy.userId status")
+    .lean();
+  if (!existing) {
+    const err = new Error("Ride not found");
+    err.status = 404;
+    throw err;
+  }
+  if (existing.offeredBy.userId.toString() !== String(userId)) {
+    const err = new Error("Only the ride's driver can update cab location");
+    err.status = 403;
+    throw err;
+  }
+  if (!["upcoming", "full", "ongoing"].includes(existing.status)) {
+    const err = new Error(`Cannot update location on a ${existing.status} ride`);
+    err.status = 400;
+    throw err;
+  }
+
   const ride = await Ride.findByIdAndUpdate(
     rideId,
     {

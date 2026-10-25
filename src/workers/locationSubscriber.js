@@ -514,8 +514,8 @@ export const startLocationSubscriber = (io, subscriptionName = SUBSCRIPTION_NAME
         // 14. SAVE_CAB_LIVE_LOCATION (From Gateway Socket)
         // ============================================
         if (eventType === "SAVE_CAB_LIVE_LOCATION") {
-          const { rideId, lat, lng } = payload;
-          await locationService.updateCabLocation(rideId, lat, lng);
+          const { rideId, lat, lng, userId } = payload;
+          await locationService.updateCabLocation(rideId, lat, lng, userId);
         }
 
         // ── 3. USER_DELETED (Wipe out tracking data) ──

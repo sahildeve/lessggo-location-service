@@ -374,7 +374,7 @@ export const withdrawRequest = async (req, res) => {
 // ─── Get Ride
 export const getRide = async (req, res) => {
   try {
-    const ride = await locationService.getRide(req.params.rideId);
+    const ride = await locationService.getRide(req.params.rideId, req.user.sub);
     return success(res, { ride }, "Ride fetched successfully");
   } catch (err) {
     logger.error("Get ride error:", { message: err.message, stack: err.stack });
@@ -386,8 +386,22 @@ export const getRide = async (req, res) => {
 export const updateCabLocation = async (req, res) => {
   try {
     const { rideId, lat, lng } = req.body;
-    const ride = await locationService.updateCabLocation(rideId, lat, lng);
-    return success(res, { ride }, "Cab location updated");
+    const ride = await locationService.updateCabLocation(
+      rideId,
+      lat,
+      lng,
+      req.user.sub,
+    );
+    // Poora ride doc nahi — usme riders ke pickup aur GPS trail hain
+    return success(
+      res,
+      {
+        rideId: ride._id,
+        cabLiveLocation: ride.cabLiveLocation,
+        status: ride.status,
+      },
+      "Cab location updated",
+    );
   } catch (err) {
     logger.error("Update cab location error:", {
       message: err.message,
