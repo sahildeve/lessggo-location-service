@@ -929,7 +929,7 @@ export const getRidePastSuggesstion = async (
   };
 };
 
-export const getNearbyRidesOrSearches = async (type) => {
+export const getNearbyRidesOrSearches = async (type, geo) => {
   if (type === "offer") {
     const rides = await Ride.find({
       status: { $in: ["upcoming", "full"] },
@@ -966,11 +966,19 @@ export const getNearbyRidesOrSearches = async (type) => {
   }
 
   if (type === "search") {
+    // ── Sirf caller ke radius me wale. $near khud distance se sort karta hai —
+    //    custom .sort() ke saath allowed nahi. from/to kabhi select mat karo (LOC-5)
     const searches = await SearchRequest.find({
       departureTime: { $gte: new Date() },
+      "from.coordinates": {
+        $near: {
+          $geometry: { type: "Point", coordinates: [geo.lng, geo.lat] },
+          $maxDistance: geo.radius,
+        },
+      },
     })
-      .select("userId username from to departureTime")
-      .sort({ departureTime: 1 })
+      .select("userId username departureTime")
+      .limit(50)
       .lean();
 
     if (!searches.length) return [];
@@ -982,7 +990,8 @@ export const getNearbyRidesOrSearches = async (type) => {
     return searches.map((s) => {
       const fresh = userInfoMap[s.userId.toString()];
       return {
-        ...s,
+        _id: s._id,
+        userId: s.userId,
         username: fresh?.username ?? null,
         fullName: fresh?.fullName ?? s.username ?? null,
         profilePicture: fresh?.profilePicture ?? null,
@@ -990,6 +999,7 @@ export const getNearbyRidesOrSearches = async (type) => {
         gender: fresh?.gender ?? null,
         designation: fresh?.designation ?? null,
         interests: fresh?.interests ?? [],
+        departureTime: s.departureTime,
       };
     });
   }

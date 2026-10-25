@@ -517,7 +517,48 @@ export const getNearbyRidesOrSearches = async (req, res) => {
       return error(res, "Query param 'type' must be 'offer' or 'search'", 400);
     }
 
-    const data = await locationService.getNearbyRidesOrSearches(type);
+    // ── Search requests me users ke exact from/to hote hain — sirf caller ke
+    //    aas paas wale dikhao, poora platform nahi (LOC-5)
+    let geo;
+    if (type === "search") {
+      const { lat, lng, radius } = req.query;
+
+      // Number("") === 0 — khaali value ko 0,0 mat maan lo
+      if (lat === undefined || lat === "" || lng === undefined || lng === "") {
+        return error(res, "Query params 'lat' and 'lng' are required", 400);
+      }
+
+      const parsedLat = Number(lat);
+      const parsedLng = Number(lng);
+      if (
+        !Number.isFinite(parsedLat) ||
+        !Number.isFinite(parsedLng) ||
+        parsedLat < -90 ||
+        parsedLat > 90 ||
+        parsedLng < -180 ||
+        parsedLng > 180
+      ) {
+        return error(
+          res,
+          "'lat' must be between -90 and 90 and 'lng' between -180 and 180",
+          400,
+        );
+      }
+
+      const parsedRadius =
+        radius === undefined || radius === "" ? 5000 : Number(radius);
+      if (!Number.isFinite(parsedRadius) || parsedRadius <= 0) {
+        return error(res, "'radius' must be a positive number (metres)", 400);
+      }
+
+      geo = {
+        lat: parsedLat,
+        lng: parsedLng,
+        radius: Math.min(parsedRadius, 15000), // max 15km
+      };
+    }
+
+    const data = await locationService.getNearbyRidesOrSearches(type, geo);
 
     return success(
       res,
