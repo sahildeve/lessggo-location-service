@@ -32,7 +32,7 @@ const rideSchema = new mongoose.Schema(
     // ─── Ride details
     departureTime: { type: Date, required: true },
     availableSeats: { type: Number, required: true, min: 1, max: 6 },
-    pricePerSeat: { type: Number, required: true, min: 0 },
+    pricePerSeat: { type: Number, required: false, min: 0 },
 
     // ─── Riders (jo log join karna chahte hain / join ho gaye)
     riders: [
