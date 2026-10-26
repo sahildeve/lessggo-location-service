@@ -103,20 +103,17 @@ export const searchRides = async ({
   toLng,
   departureTime,
 }) => {
-  const RADIUS_METERS = 5000; // 5km radius me pickup dhundna
+  // ── Tunable — env se badal sakte ho bina deploy ke
+  const RADIUS_METERS = Number(process.env.SEARCH_PICKUP_RADIUS_M) || 10000;
+  const DEST_RADIUS_KM = Number(process.env.SEARCH_DEST_RADIUS_KM) || 15;
+  const RESULT_LIMIT = 100;
 
-  // Step 1: Departure time ke aas paas rides dhundo (±2 hours)
-  const timeFrom = new Date(
-    new Date(departureTime).getTime() - 2 * 60 * 60 * 1000,
-  );
-  const timeTo = new Date(
-    new Date(departureTime).getTime() + 2 * 60 * 60 * 1000,
-  );
-
-  // Step 2: MongoDB geospatial query — from location ke paas rides
   const rides = await Ride.find({
     status: "upcoming",
-    departureTime: { $gte: timeFrom, $lte: timeTo },
+    // ── Time window hata diya — sirf guzar chuki rides nahi dikhani
+    departureTime: { $gte: new Date() },
+    // ── Apni hi ride search result me nahi aani chahiye
+    "offeredBy.userId": { $ne: new mongoose.Types.ObjectId(userId) },
     "from.coordinates": {
       $near: {
         $geometry: { type: "Point", coordinates: [fromLng, fromLat] },
@@ -136,16 +133,22 @@ export const searchRides = async ({
         },
       ],
     },
-  }).lean();
+  })
+    .limit(RESULT_LIMIT)
+    .lean();
 
-  // Step 3: Filter — destination bhi match karna chahiye (same direction)
+  // Step 3: Destination bhi same direction me hona chahiye
   const matched = rides.filter((ride) => {
-    const rideToLng = ride.to.coordinates.coordinates[0];
-    const rideToLat = ride.to.coordinates.coordinates[1];
+    const [rideToLng, rideToLat] = ride.to.coordinates.coordinates;
+    return getDistanceKm(toLat, toLng, rideToLat, rideToLng) <= DEST_RADIUS_KM;
+  });
 
-    // Simple direction check — rider ka destination ride ke destination ke paas hai?
-    const distance = getDistanceKm(toLat, toLng, rideToLat, rideToLng);
-    return distance <= 10; // 10km ke andar destination
+  // ── Diagnostic — kaunsa stage kaat raha hai, logs me dikh jayega
+  logger.info("Ride search funnel", {
+    userId,
+    nearMatches: rides.length,
+    afterDestinationFilter: matched.length,
+    searchPoint: [fromLng, fromLat],
   });
 
   // ── Ride owners ki info auth service se
@@ -179,7 +182,7 @@ export const searchRides = async ({
     };
   });
 
-  // ── Step 4: Search ko save karo — taaki future me ride offer hone pe match ho sake ──
+  // ── Step 4: Search ko save karo — taaki future me ride offer hone pe match ho sake
   const searchRequest = await SearchRequest.create({
     userId,
     username: username || null,
@@ -688,7 +691,9 @@ export const updateCabLocation = async (rideId, lat, lng, userId) => {
     throw err;
   }
   if (!["upcoming", "full", "ongoing"].includes(existing.status)) {
-    const err = new Error(`Cannot update location on a ${existing.status} ride`);
+    const err = new Error(
+      `Cannot update location on a ${existing.status} ride`,
+    );
     err.status = 400;
     throw err;
   }
