@@ -372,7 +372,7 @@ export const exitRide = async (rideId, userId) => {
   }
 
   // Seat wapas do
-  ride.availableSeats += 1;
+  if (ride.status === "full") ride.status = "upcoming"; // seats are fixed capacity, never grow (LOC-07)
   if (ride.status === "full") ride.status = "upcoming";
 
   // Rider remove karo
@@ -413,7 +413,7 @@ export const removeRider = async (rideId, riderId, driverUserId) => {
 
   // Agar accepted tha toh seat wapas do
   if (riderStatus === "accepted") {
-    ride.availableSeats += 1;
+    if (ride.status === "full") ride.status = "upcoming"; // seats are fixed capacity, never grow (LOC-07)
     if (ride.status === "full") ride.status = "upcoming";
   }
 
@@ -532,14 +532,15 @@ export const getMyChats = async (userId) => {
   return Array.from(chatMap.values());
 };
 
-// ─── Accept / Reject Ride Request
 export const respondToRequest = async (
   rideId,
   riderId,
   action,
   offeredByUserId,
 ) => {
-  const ride = await Ride.findById(rideId);
+  const ride = await Ride.findById(rideId).select(
+    "-routeCoordinates -cabLiveLocation",
+  );
 
   if (!ride) {
     const err = new Error("Ride not found");
@@ -551,6 +552,12 @@ export const respondToRequest = async (
     err.status = 403;
     throw err;
   }
+  // No accepting or rejecting on a cancelled, ended or expired ride (LOC-07).
+  if (!["upcoming", "full"].includes(ride.status)) {
+    const err = new Error("This ride is no longer active");
+    err.status = 400;
+    throw err;
+  }
 
   const rider = ride.riders.find((r) => r.userId.toString() === riderId);
   if (!rider) {
@@ -560,25 +567,98 @@ export const respondToRequest = async (
   }
 
   const previousStatus = rider.status;
-  rider.status = action;
+  const riderOid = new mongoose.Types.ObjectId(riderId);
+  const acceptedCount = {
+    $size: {
+      $filter: {
+        input: "$riders",
+        cond: { $eq: ["$$this.status", "accepted"] },
+      },
+    },
+  };
 
   if (action === "accepted") {
-    await redis.sadd(`ride_members:${rideId}`, riderId);
-    await redis.expire(`ride_members:${rideId}`, 86400 * 7);
-    await redis.expire(`ride_driver:${rideId}`, 86400 * 7);
-  } else if (action === "rejected" && previousStatus === "accepted") {
-    await redis.srem(`ride_members:${rideId}`, riderId);
+    // Only a pending REQUEST can be accepted by the driver; invited, rejected
+    // or cancelled entries need the rider's own consent (LOC-07).
+    if (previousStatus !== "pending") {
+      const err = new Error("Only pending requests can be accepted");
+      err.status = 409;
+      throw err;
+    }
+    // Atomic: accept only while the ride is open and has a free seat.
+    const result = await Ride.updateOne(
+      {
+        _id: ride._id,
+        status: "upcoming",
+        $expr: { $lt: [acceptedCount, "$availableSeats"] },
+      },
+      { $set: { "riders.$[r].status": "accepted" } },
+      { arrayFilters: [{ "r.userId": riderOid, "r.status": "pending" }] },
+    );
+    if (!result.modifiedCount) {
+      const err = new Error("The ride is full or the request has changed");
+      err.status = 409;
+      throw err;
+    }
+    await Ride.updateOne(
+      {
+        _id: ride._id,
+        status: "upcoming",
+        $expr: { $gte: [acceptedCount, "$availableSeats"] },
+      },
+      { $set: { status: "full" } },
+    );
+    // Redis AFTER MongoDB (LOC-08): a Redis failure no longer leaves a
+    // non-member in the set.
+    try {
+      await redis.sadd(`ride_members:${rideId}`, riderId);
+      await redis.expire(`ride_members:${rideId}`, 86400 * 7);
+      await redis.expire(`ride_driver:${rideId}`, 86400 * 7);
+    } catch (err) {
+      logger.error("ride_members add failed after accept", {
+        rideId,
+        riderId,
+        message: err.message,
+      });
+    }
+  } else if (action === "rejected") {
+    if (!["pending", "accepted"].includes(previousStatus)) {
+      const err = new Error("This request can no longer be rejected");
+      err.status = 409;
+      throw err;
+    }
+    const result = await Ride.updateOne(
+      { _id: ride._id },
+      { $set: { "riders.$[r].status": "rejected" } },
+      { arrayFilters: [{ "r.userId": riderOid, "r.status": previousStatus }] },
+    );
+    if (!result.modifiedCount) {
+      const err = new Error("The request has changed, please refresh");
+      err.status = 409;
+      throw err;
+    }
+    if (previousStatus === "accepted") {
+      // A seat is free again.
+      await Ride.updateOne(
+        { _id: ride._id, status: "full" },
+        { $set: { status: "upcoming" } },
+      );
+      await redis.srem(`ride_members:${rideId}`, riderId);
+    }
+  } else {
+    const err = new Error("Invalid action");
+    err.status = 400;
+    throw err;
   }
 
-  const acceptedCount = ride.riders.filter(
-    (r) => r.status === "accepted",
-  ).length;
-  if (acceptedCount >= ride.availableSeats) {
-    ride.status = "full";
-  }
-
-  await ride.save();
-  return { ride, rider, previousStatus };
+  const fresh = await Ride.findById(ride._id).select(
+    "-routeCoordinates -cabLiveLocation",
+  );
+  return {
+    ride: fresh,
+    rider: { ...rider.toObject(), status: action },
+    previousStatus,
+  };
 };
 
 // ─── Rider responds to driver's invite
@@ -817,7 +897,7 @@ export const withdrawRequest = async (rideId, userId) => {
 
   // ── Agar accepted tha toh seat wapas do
   if (riderStatus === "accepted") {
-    ride.availableSeats += 1;
+    if (ride.status === "full") ride.status = "upcoming"; // seats are fixed capacity, never grow (LOC-07)
     if (ride.status === "full") {
       ride.status = "upcoming";
     }
