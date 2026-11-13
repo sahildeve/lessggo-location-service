@@ -437,13 +437,19 @@ export const getMyRequests = async (userId) => {
   const rides = await Ride.find({
     "riders.userId": userId,
   })
+    // Never load the GPS trail or the live cab position here (LOC-01, LOC-09).
+    .select("-routeCoordinates -cabLiveLocation")
     .sort({ departureTime: -1, createdAt: -1 })
+    .limit(100)
     .lean();
 
-  return rides.map((ride) => ({
-    ...ride,
-    myRequest: ride.riders.find((rider) => rider.userId.toString() === userId),
-  }));
+  // Only the user's own entry: other riders' pickups are not theirs to see (LOC-01).
+  return rides.map((ride) => {
+    const myRequest = ride.riders.find(
+      (rider) => rider.userId.toString() === userId,
+    );
+    return { ...ride, riders: myRequest ? [myRequest] : [], myRequest };
+  });
 };
 
 const ACTIVE_RIDE_STATUSES = { $nin: ["cancelled", "completed"] };

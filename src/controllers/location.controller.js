@@ -4,6 +4,7 @@ import logger from "../utils/logger.js";
 import { getDisplayName } from "../utils/displayName.js";
 import { removeUserFromRideRoom, closeRideRoom } from "../utils/rideRooms.js";
 import { publishEvent } from "../utils/eventPublisher.js";
+import { toRequesterView } from "../utils/rideViews.js";
 
 // ─── Save Location
 export const saveLocation = async (req, res) => {
@@ -134,7 +135,7 @@ export const requestRide = async (req, res) => {
       requestedAt: rider?.requestedAt,
     });
 
-    return success(res, { ride }, "Ride request sent successfully");
+    return success(res, { ride: toRequesterView(ride, req.user.sub) }, "Ride request sent successfully");
   } catch (err) {
     logger.error("Request ride error:", {
       message: err.message,
@@ -218,7 +219,7 @@ export const cancelRiderRide = async (req, res) => {
       availableSeats: ride.availableSeats,
     });
 
-    return success(res, { ride }, "You have exited the ride successfully");
+    return success(res, { ride: toRequesterView(ride, req.user.sub) }, "You have exited the ride successfully");
   } catch (err) {
     logger.error("Cancel rider ride error:", {
       message: err.message,
@@ -319,7 +320,7 @@ export const riderRespondToInvite = async (req, res) => {
       action,
     });
 
-    return success(res, { ride }, `Invite ${action} successfully`);
+    return success(res, { ride: toRequesterView(ride, req.user.sub) }, `Invite ${action} successfully`);
   } catch (err) {
     logger.error("Rider respond to invite error:", {
       message: err.message,
@@ -378,7 +379,7 @@ export const withdrawRequest = async (req, res) => {
       availableSeats: ride.availableSeats,
     });
 
-    return success(res, { ride }, "Request withdrawn successfully");
+    return success(res, { ride: toRequesterView(ride, req.user.sub) }, "Request withdrawn successfully");
   } catch (err) {
     logger.error("Withdraw request error:", {
       message: err.message,
