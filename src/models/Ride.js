@@ -64,15 +64,17 @@ const rideSchema = new mongoose.Schema(
     // ─── Ride status
     status: {
       type: String,
-      enum: ["upcoming", "full", "ongoing", "completed", "cancelled", "expired"],
+      enum: [
+        "upcoming",
+        "full",
+        "ongoing",
+        "completed",
+        "cancelled",
+        "expired",
+      ],
       default: "upcoming",
     },
 
-    // ─── Live tracking
-    cabLiveLocation: {
-      type: { type: String, enum: ["Point"], default: "Point" },
-      coordinates: { type: [Number], default: [0, 0] },
-    },
     routeCoordinates: [
       {
         coordinates: { type: [Number] },
@@ -88,10 +90,15 @@ const rideSchema = new mongoose.Schema(
 
 rideSchema.index({ "from.coordinates": "2dsphere" });
 rideSchema.index({ "to.coordinates": "2dsphere" });
-rideSchema.index({ cabLiveLocation: "2dsphere" });
 rideSchema.index({ status: 1 });
 rideSchema.index({ departureTime: 1 });
 rideSchema.index({ "offeredBy.userId": 1 });
+// My requests / my chats / past rides by rider, newest first (LOC-09).
+rideSchema.index({ "riders.userId": 1, departureTime: -1 });
+// Feeds and the cron: open rides by departure time.
+rideSchema.index({ status: 1, departureTime: 1 });
+// My rides as driver, newest first.
+rideSchema.index({ "offeredBy.userId": 1, departureTime: -1 });
 
 const Ride = mongoose.model("Ride", rideSchema);
 export default Ride;

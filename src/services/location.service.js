@@ -430,6 +430,7 @@ export const getMyRides = async (userId) => {
   return Ride.find({ "offeredBy.userId": userId })
     .select("-__v -routeCoordinates")
     .sort({ departureTime: -1, createdAt: -1 })
+    .limit(100) // newest 100 (LOC-09)
     .lean();
 };
 
@@ -1083,6 +1084,7 @@ export const getNearbyRidesOrSearches = async (type, geo) => {
         "offeredBy from to departureTime availableSeats pricePerSeat status",
       )
       .sort({ departureTime: 1 })
+      .limit(50) // soonest 50, not the whole platform (LOC-09)
       .lean();
 
     if (!rides.length) return [];

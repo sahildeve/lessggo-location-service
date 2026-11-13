@@ -524,7 +524,7 @@ export const getRidePastSuggesstion = async (req, res) => {
   try {
     const { date } = req.query;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 50); // capped (LOC-09)
 
     const data = await locationService.getRidePastSuggesstion(
       req.user.sub,
