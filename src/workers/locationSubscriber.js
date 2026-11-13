@@ -549,9 +549,11 @@ export const startLocationSubscriber = (
 
         // 12. RIDE_ENDED
         if (eventType === "RIDE_ENDED") {
-
           // Close the ride chat like a cancel does (LOC-18).
-          await chatServiceClient.closeRideChat(rideId, "Ride has been completed");
+          await chatServiceClient.closeRideChat(
+            rideId,
+            "Ride has been completed",
+          );
 
           for (const r of acceptedRiders || []) {
             if (io) {
@@ -664,14 +666,55 @@ export const startLocationSubscriber = (
             `${tag} Own rides anonymized: ${anonymized.modifiedCount}`,
           );
 
-          //    …aur jo abhi active hain unhe cancel
-          const cancelled = await Ride.updateMany(
-            { _id: { $in: ownActiveRideIds } },
-            { $set: { status: "cancelled" } },
-          );
-          logger.info(
-            `${tag} Own active rides cancelled: ${cancelled.modifiedCount}`,
-          );
+          //    …aur jo abhi active hain unhe cancel, with the same notices and chat
+          //    closing as a normal cancel (LOC-19). Claim each ride atomically so a
+          //    redelivered event never notifies twice.
+          const ownActiveRides = await Ride.find({
+            _id: { $in: ownActiveRideIds },
+            status: { $in: activeStatuses },
+          })
+            .select("from to riders.userId riders.status")
+            .lean();
+
+          let cancelledCount = 0;
+          for (const r of ownActiveRides) {
+            const claimed = await Ride.updateOne(
+              { _id: r._id, status: { $in: activeStatuses } },
+              { $set: { status: "cancelled" } },
+            );
+            if (!claimed.modifiedCount) continue;
+            cancelledCount += 1;
+
+            const rideId = String(r._id);
+            await chatServiceClient.closeRideChat(
+              rideId,
+              "Ride has been cancelled",
+            );
+
+            const affected = (r.riders || []).filter(
+              (x) =>
+                ["accepted", "pending", "invited"].includes(x.status) &&
+                String(x.userId) !== String(userId),
+            );
+            for (const rider of affected) {
+              const riderId = String(rider.userId);
+              io?.to(`user:${riderId}`).emit("ride_cancelled", {
+                rideId,
+                from: r.from?.address,
+                to: r.to?.address,
+                message: "A ride you were part of has been cancelled",
+              });
+              await createNotification({
+                userId: riderId,
+                type: "ride_cancelled",
+                title: "Ride Cancelled",
+                message:
+                  "A ride you were part of was cancelled because the driver's account was deleted",
+                data: { rideId, from: r.from?.address, to: r.to?.address },
+              });
+            }
+          }
+          logger.info(`${tag} Own active rides cancelled: ${cancelledCount}`);
 
           // 5. Dusron ki rides se rider entry hatao (pickupLocation = aksar ghar ka address)
           const pulled = await Ride.updateMany(
@@ -680,6 +723,28 @@ export const startLocationSubscriber = (
           );
           logger.info(
             `${tag} Rider entries removed from rides: ${pulled.modifiedCount}`,
+          );
+
+          // A seat may be free again on rides they had joined (LOC-19).
+          await Ride.updateMany(
+            {
+              _id: { $in: joinedRideIds },
+              status: "full",
+              $expr: {
+                $lt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: "$riders",
+                        cond: { $eq: ["$$this.status", "accepted"] },
+                      },
+                    },
+                  },
+                  "$availableSeats",
+                ],
+              },
+            },
+            { $set: { status: "upcoming" } },
           );
 
           logger.info(
