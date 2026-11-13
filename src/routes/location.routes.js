@@ -36,6 +36,14 @@ import {
 } from "../controllers/location.controller.js";
 
 const router = Router();
+// Malformed ids get a clear 400 instead of a CastError 500 (LOC-20).
+const checkObjectId = (req, res, next, value, name) =>
+  /^[a-f\d]{24}$/i.test(String(value))
+    ? next()
+    : res.status(400).json({ success: false, message: `Invalid ${name}` });
+["rideId", "riderId", "toUserId"].forEach((p) =>
+  router.param(p, checkObjectId),
+);
 
 // ─── Location Routes
 router.post("/save", protect, validate(saveLocationSchema), saveLocation);

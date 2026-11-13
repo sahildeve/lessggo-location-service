@@ -1,5 +1,12 @@
 import Joi from "joi";
 
+// Departure at most N days ahead (LOC-20): ride membership keys and the
+// cron assume rides happen within a month.
+const withinDays = (days) => (value, helpers) =>
+  value.getTime() > Date.now() + days * 24 * 60 * 60 * 1000
+    ? helpers.message(`departureTime must be within ${days} days`)
+    : value;
+
 export const saveLocationSchema = Joi.object({
   type: Joi.string().valid("pickup", "dropoff").required(),
   address: Joi.string().required(),
@@ -28,12 +35,12 @@ export const offerRideSchema = Joi.object({
 });
 
 export const searchRideSchema = Joi.object({
-  fromAddress:   Joi.string().required(),
-  fromLat:       Joi.number().min(-90).max(90).required(),
-  fromLng:       Joi.number().min(-180).max(180).required(),
-  toAddress:     Joi.string().required(),
-  toLat:         Joi.number().min(-90).max(90).required(),
-  toLng:         Joi.number().min(-180).max(180).required(),
+  fromAddress: Joi.string().required(),
+  fromLat: Joi.number().min(-90).max(90).required(),
+  fromLng: Joi.number().min(-180).max(180).required(),
+  toAddress: Joi.string().required(),
+  toLat: Joi.number().min(-90).max(90).required(),
+  toLng: Joi.number().min(-180).max(180).required(),
   departureTime: Joi.date().iso().required(),
 });
 
