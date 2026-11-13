@@ -25,7 +25,7 @@ export const offerRideSchema = Joi.object({
   toCity: Joi.string().required(),
   toLat: Joi.number().min(-90).max(90).required(),
   toLng: Joi.number().min(-180).max(180).required(),
-  departureTime: Joi.date()
+  departureTime: Joi.date().custom(withinDays(30))
     .iso()
     .greater("now")
     .required()
@@ -41,7 +41,7 @@ export const searchRideSchema = Joi.object({
   toAddress: Joi.string().required(),
   toLat: Joi.number().min(-90).max(90).required(),
   toLng: Joi.number().min(-180).max(180).required(),
-  departureTime: Joi.date().iso().required(),
+  departureTime: Joi.date().custom(withinDays(30)).iso().required(),
 });
 
 export const requestRideSchema = Joi.object({
