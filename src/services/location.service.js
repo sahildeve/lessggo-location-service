@@ -761,46 +761,50 @@ export const getRide = async (rideId, userId) => {
   };
 };
 
-// ─── Update Cab Live Location
 export const updateCabLocation = async (rideId, lat, lng, userId) => {
-  // ── Sirf driver, aur sirf active ride pe GPS (LOC-3)
-  const existing = await Ride.findById(rideId)
-    .select("offeredBy.userId status")
-    .lean();
-  if (!existing) {
-    const err = new Error("Ride not found");
-    err.status = 404;
-    throw err;
-  }
-  if (existing.offeredBy.userId.toString() !== String(userId)) {
-    const err = new Error("Only the ride's driver can update cab location");
-    err.status = 403;
-    throw err;
-  }
-  if (!["upcoming", "full", "ongoing"].includes(existing.status)) {
+  const cabLiveLocation = { type: "Point", coordinates: [lng, lat] };
+
+  // One atomic write that also checks driver and status (LOC-3, LOC-10):
+  // no separate read, no full document returned, and the GPS trail is capped
+  // at the latest 1000 points instead of growing forever.
+  const result = await Ride.updateOne(
+    {
+      _id: rideId,
+      "offeredBy.userId": userId,
+      status: { $in: ["upcoming", "full", "ongoing"] },
+    },
+    {
+      $set: { cabLiveLocation },
+      $push: {
+        routeCoordinates: {
+          $each: [{ coordinates: [lng, lat], timestamp: new Date() }],
+          $slice: -1000,
+        },
+      },
+    },
+  );
+
+  if (!result.matchedCount) {
+    // Rare path: find out why, for a clear error.
+    const existing = await Ride.findById(rideId)
+      .select("offeredBy.userId status")
+      .lean();
     const err = new Error(
-      `Cannot update location on a ${existing.status} ride`,
+      !existing
+        ? "Ride not found"
+        : existing.offeredBy.userId.toString() !== String(userId)
+          ? "Only the ride's driver can update cab location"
+          : `Cannot update location on a ${existing.status} ride`,
     );
-    err.status = 400;
+    err.status = !existing
+      ? 404
+      : existing.offeredBy.userId.toString() !== String(userId)
+        ? 403
+        : 400;
     throw err;
   }
 
-  const ride = await Ride.findByIdAndUpdate(
-    rideId,
-    {
-      $set: { cabLiveLocation: { type: "Point", coordinates: [lng, lat] } },
-      $push: {
-        routeCoordinates: { coordinates: [lng, lat], timestamp: new Date() },
-      },
-    },
-    { new: true },
-  );
-  if (!ride) {
-    const err = new Error("Ride not found");
-    err.status = 404;
-    throw err;
-  }
-  return ride;
+  return { _id: rideId, cabLiveLocation };
 };
 
 // ─── Save User Live Location
