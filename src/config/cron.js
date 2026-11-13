@@ -4,6 +4,7 @@ import logger from "../utils/logger.js";
 import redis from "./redis.js";
 import { createNotification } from "../utils/notification.js";
 import { sendRideStartedEmail } from "../utils/emailNotification.js";
+import { closeRideRoom } from "../utils/rideRooms.js";
 
 const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -81,7 +82,11 @@ export const startCronJobs = (io) => {
           ride.status = "expired";
           await ride.save();
 
-          await redis.del(`ride_members:${ride._id}`, `ride_driver:${ride._id}`);
+          await redis.del(
+            `ride_members:${ride._id}`,
+            `ride_driver:${ride._id}`,
+          );
+          closeRideRoom(io, ride._id, "expired"); // GWR-01
 
           if (io) {
             io.to(`user:${ride.offeredBy.userId.toString()}`).emit(
@@ -118,6 +123,7 @@ export const startCronJobs = (io) => {
         await ride.save();
 
         await redis.del(`ride_members:${ride._id}`, `ride_driver:${ride._id}`);
+        closeRideRoom(io, ride._id, "expired"); // GWR-01
 
         const expiredPayload = {
           rideId: ride._id,
@@ -142,7 +148,9 @@ export const startCronJobs = (io) => {
         });
 
         // Accepted riders ko bhi notify karo ← naya (ongoing case mein riders bhi milne chahiye)
-        const acceptedRiders = ride.riders.filter((r) => r.status === "accepted");
+        const acceptedRiders = ride.riders.filter(
+          (r) => r.status === "accepted",
+        );
         for (const rider of acceptedRiders) {
           if (io) {
             io.to(`user:${rider.userId.toString()}`).emit(

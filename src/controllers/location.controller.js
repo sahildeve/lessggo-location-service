@@ -2,6 +2,7 @@ import * as locationService from "../services/location.service.js";
 import { success, error } from "../utils/response.js";
 import logger from "../utils/logger.js";
 import { getDisplayName } from "../utils/displayName.js";
+import { removeUserFromRideRoom, closeRideRoom } from "../utils/rideRooms.js";
 import { publishEvent } from "../utils/eventPublisher.js";
 
 // ─── Save Location
@@ -206,6 +207,8 @@ export const cancelRiderRide = async (req, res) => {
     const { rideId } = req.params;
 
     const ride = await locationService.exitRide(rideId, req.user.sub);
+    // Left the ride: no more live locations or chat (GWR-01).
+    removeUserFromRideRoom(req.app.get("io"), rideId, req.user.sub);
 
     await publishEvent("RIDER_EXITED", {
       rideId,
@@ -235,6 +238,9 @@ export const removeRider = async (req, res) => {
       req.user.sub,
     );
 
+    // Removed by the driver: cut them off from the ride room now (GWR-01).
+    removeUserFromRideRoom(req.app.get("io"), rideId, riderId);
+
     await publishEvent("RIDER_REMOVED", {
       rideId,
       riderId,
@@ -262,6 +268,11 @@ export const respondToRequest = async (req, res) => {
       action,
       req.user.sub,
     );
+
+    // A rejected rider (possibly accepted before) must not stay in the room (GWR-01).
+    if (action === "rejected") {
+      removeUserFromRideRoom(req.app.get("io"), rideId, riderId);
+    }
 
     await publishEvent("RIDE_REQUEST_RESPONDED", {
       rideId: ride._id.toString(),
@@ -324,6 +335,9 @@ export const cancelRide = async (req, res) => {
     const { rideId } = req.params;
     const ride = await locationService.cancelRide(rideId, req.user.sub);
 
+    // Ride cancelled: close the room for everyone (GWR-01).
+    closeRideRoom(req.app.get("io"), rideId, "cancelled");
+
     const acceptedRiders = ride.riders.filter((r) => r.status === "accepted");
 
     await publishEvent("RIDE_CANCELLED", {
@@ -351,6 +365,9 @@ export const withdrawRequest = async (req, res) => {
       rideId,
       req.user.sub,
     );
+
+    // Withdrew (possibly after being accepted): leave the ride room (GWR-01).
+    removeUserFromRideRoom(req.app.get("io"), rideId, req.user.sub);
 
     await publishEvent("RIDE_REQUEST_WITHDRAWN", {
       rideId,
@@ -416,6 +433,8 @@ export const endRide = async (req, res) => {
   try {
     const { rideId } = req.params;
     const ride = await locationService.endRide(rideId, req.user.sub);
+    // Ride ended: close the room for everyone (GWR-01).
+    closeRideRoom(req.app.get("io"), rideId, "ended");
 
     const acceptedRiders = ride.riders.filter((r) => r.status === "accepted");
 

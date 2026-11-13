@@ -16,7 +16,7 @@ import {
   sendRideCancelledEmail,
 } from "../utils/emailNotification.js";
 import * as locationService from "../services/location.service.js";
-
+import { removeUserFromRideRoom, closeRideRoom } from "../utils/rideRooms.js";
 import Location from "../models/Location.js";
 import Ride from "../models/Ride.js";
 import SearchRequest from "../models/SearchRequest.js";
@@ -31,7 +31,10 @@ const SUBSCRIBER_CONTEXT = "location-service:locationSubscriber";
 
 // subscriptionName param — same handler do subscriptions pe chalta hai
 // (location-events + auth-events ka USER_DELETED); eventType pe branch karta hai
-export const startLocationSubscriber = (io, subscriptionName = SUBSCRIPTION_NAME) => {
+export const startLocationSubscriber = (
+  io,
+  subscriptionName = SUBSCRIPTION_NAME,
+) => {
   try {
     const subscription = pubsub.subscription(subscriptionName);
 
@@ -558,6 +561,11 @@ export const startLocationSubscriber = (io, subscriptionName = SUBSCRIPTION_NAME
             `${tag} Redis cleared: user cache, ${ownActiveRideIds.length} ride_members sets deleted, removed from ${joinedRideIds.length} ride_members sets`,
           );
 
+          // Close the deleted owner's active ride rooms, and drop the user from
+          // rides they had joined, so nobody keeps receiving live locations (GWR-01).
+          ownActiveRideIds.forEach((id) => closeRideRoom(io, id, "cancelled"));
+          joinedRideIds.forEach((id) => removeUserFromRideRoom(io, id, userId));
+
           // 1. Saved pickup/dropoff addresses + live GPS — pura personal data
           const locations = await Location.deleteMany({ userId });
           logger.info(`${tag} Location deleted: ${locations.deletedCount}`);
@@ -586,21 +594,27 @@ export const startLocationSubscriber = (io, subscriptionName = SUBSCRIPTION_NAME
               },
             },
           );
-          logger.info(`${tag} Own rides anonymized: ${anonymized.modifiedCount}`);
+          logger.info(
+            `${tag} Own rides anonymized: ${anonymized.modifiedCount}`,
+          );
 
           //    …aur jo abhi active hain unhe cancel
           const cancelled = await Ride.updateMany(
             { _id: { $in: ownActiveRideIds } },
             { $set: { status: "cancelled" } },
           );
-          logger.info(`${tag} Own active rides cancelled: ${cancelled.modifiedCount}`);
+          logger.info(
+            `${tag} Own active rides cancelled: ${cancelled.modifiedCount}`,
+          );
 
           // 5. Dusron ki rides se rider entry hatao (pickupLocation = aksar ghar ka address)
           const pulled = await Ride.updateMany(
             { "riders.userId": userId },
             { $pull: { riders: { userId } } },
           );
-          logger.info(`${tag} Rider entries removed from rides: ${pulled.modifiedCount}`);
+          logger.info(
+            `${tag} Rider entries removed from rides: ${pulled.modifiedCount}`,
+          );
 
           logger.info(
             `Wiped out all location data for deleted user: ${userId}`,
