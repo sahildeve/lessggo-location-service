@@ -2,7 +2,7 @@ import axios from "axios";
 import logger from "./logger.js";
 
 const baseURL = process.env.CHAT_SERVICE_URL || "http://localhost:3004";
-const serviceKey = process.env.INTERNAL_SERVICE_KEY || "dev-internal-key";
+const serviceKey = process.env.INTERNAL_SERVICE_KEY; // no fallback (LOC-30)
 
 const client = axios.create({
   baseURL,

@@ -8,8 +8,10 @@ import { closeRideRoom } from "../utils/rideRooms.js";
 
 const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
 
+let cronTask = null;
+
 export const startCronJobs = (io) => {
-  cron.schedule("*/5 * * * *", async () => {
+  cronTask = cron.schedule("*/5 * * * *", async () => {
     try {
       logger.info("Cron: Checking rides...");
 
@@ -179,4 +181,10 @@ export const startCronJobs = (io) => {
   });
 
   logger.info("Cron jobs started");
+};
+
+// Called on shutdown (LOC-12) so no new run starts on a closing instance.
+export const stopCronJobs = () => {
+  cronTask?.stop();
+  cronTask = null;
 };

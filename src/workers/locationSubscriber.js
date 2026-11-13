@@ -2,7 +2,7 @@ import pubsub from "../config/pubsub.js";
 import logger from "../utils/logger.js";
 import { handleSubscriberError } from "../utils/subscriberError.js";
 import {
-  alreadyProcessed,
+  claimMessage,
   markProcessed,
   releaseProcessed,
 } from "../utils/messageDedupe.js";
@@ -29,6 +29,43 @@ const SUBSCRIPTION_NAME =
 // Dedupe claim aur release dono me same hona chahiye
 const SUBSCRIBER_CONTEXT = "location-service:locationSubscriber";
 
+// ── Subscription lifecycle (LOC-12) ──
+const activeSubscriptions = new Map();
+const restartAttempts = new Map();
+const pendingRestarts = new Set();
+let stopping = false;
+
+const scheduleRestart = (io, subscriptionName) => {
+  if (stopping || pendingRestarts.has(subscriptionName)) return;
+  const attempt = restartAttempts.get(subscriptionName) || 0;
+  const delay = Math.min(30_000, 1000 * 2 ** attempt);
+  restartAttempts.set(subscriptionName, attempt + 1);
+  pendingRestarts.add(subscriptionName);
+  logger.warn("Restarting location subscription", {
+    subscriptionName,
+    inMs: delay,
+  });
+  setTimeout(async () => {
+    pendingRestarts.delete(subscriptionName);
+    const old = activeSubscriptions.get(subscriptionName);
+    activeSubscriptions.delete(subscriptionName);
+    try {
+      old?.removeAllListeners();
+      await old?.close();
+    } catch {
+      // already closed
+    }
+    startLocationSubscriber(io, subscriptionName);
+  }, delay);
+};
+
+export const stopLocationSubscribers = async () => {
+  stopping = true;
+  await Promise.allSettled(
+    [...activeSubscriptions.values()].map((s) => s.close()),
+  );
+};
+
 // subscriptionName param — same handler do subscriptions pe chalta hai
 // (location-events + auth-events ka USER_DELETED); eventType pe branch karta hai
 export const startLocationSubscriber = (
@@ -36,19 +73,27 @@ export const startLocationSubscriber = (
   subscriptionName = SUBSCRIPTION_NAME,
 ) => {
   try {
-    const subscription = pubsub.subscription(subscriptionName);
+    if (stopping) return;
+    // At most 50 messages in flight per subscription (LOC-12).
+    const subscription = pubsub.subscription(subscriptionName, {
+      flowControl: { maxMessages: 50, allowExcessMessages: false },
+    });
+    activeSubscriptions.set(subscriptionName, subscription);
 
     subscription.on("message", async (message) => {
       try {
         const parsedData = JSON.parse(message.data.toString());
         const { eventType, payload } = parsedData;
 
-        // ── Duplicate delivery (Pub/Sub at-least-once) — pehle hi process ho chuka
-        if (await alreadyProcessed(message.id, SUBSCRIBER_CONTEXT)) {
-          logger.info(
-            `Skipped duplicate location event: ${eventType} (MsgID: ${message.id})`,
-          );
+        // ── Duplicate delivery (Pub/Sub at-least-once)
+        const claim = await claimMessage(message.id, SUBSCRIBER_CONTEXT);
+        if (claim === "done") {
           message.ack();
+          return;
+        }
+        if (claim === "in_progress") {
+          // Another worker has it, or one died mid-way (LOC-11): retry later.
+          message.nack();
           return;
         }
 
@@ -624,7 +669,8 @@ export const startLocationSubscriber = (
         // Acknowledge message
         message.ack();
         await markProcessed(message.id, SUBSCRIBER_CONTEXT);
-        logger.info(
+        restartAttempts.set(subscriptionName, 0); // healthy again
+        logger.debug(
           `Processed location event: ${eventType} (MsgID: ${message.id})`,
         );
       } catch (err) {
@@ -639,6 +685,8 @@ export const startLocationSubscriber = (
         subscription: subscriptionName,
         message: error.message,
       });
+      // Restart only when the stream actually fails (LOC-12).
+      scheduleRestart(io, subscriptionName);
     });
 
     logger.info(`Location Subscriber listening on ${subscriptionName}`);
@@ -646,5 +694,6 @@ export const startLocationSubscriber = (
     logger.error("Failed to start Location Subscriber:", {
       message: err.message,
     });
+    scheduleRestart(io, subscriptionName);
   }
 };
