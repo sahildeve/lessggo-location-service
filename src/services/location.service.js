@@ -152,7 +152,6 @@ export const searchRides = async ({
     userId,
     nearMatches: rides.length,
     afterDestinationFilter: matched.length,
-    searchPoint: [fromLng, fromLat],
   });
 
   // ── Ride owners ki info auth service se
