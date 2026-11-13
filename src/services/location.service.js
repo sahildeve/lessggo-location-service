@@ -767,7 +767,7 @@ export const updateCabLocation = async (rideId, lat, lng, userId) => {
   // One atomic write that also checks driver and status (LOC-3, LOC-10):
   // no separate read, no full document returned, and the GPS trail is capped
   // at the latest 1000 points instead of growing forever.
-  const result = await Ride.updateOne(
+  const updated = await Ride.findOneAndUpdate(
     {
       _id: rideId,
       "offeredBy.userId": userId,
@@ -782,9 +782,11 @@ export const updateCabLocation = async (rideId, lat, lng, userId) => {
         },
       },
     },
+    // Only the status comes back, never the riders or the GPS trail.
+    { projection: { status: 1 }, lean: true },
   );
 
-  if (!result.matchedCount) {
+  if (!updated) {
     // Rare path: find out why, for a clear error.
     const existing = await Ride.findById(rideId)
       .select("offeredBy.userId status")
@@ -804,7 +806,7 @@ export const updateCabLocation = async (rideId, lat, lng, userId) => {
     throw err;
   }
 
-  return { _id: rideId, cabLiveLocation };
+  return { _id: rideId, cabLiveLocation, status: updated.status };
 };
 
 // ─── Save User Live Location
