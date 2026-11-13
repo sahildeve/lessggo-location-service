@@ -834,6 +834,13 @@ export const endRide = async (rideId, userId) => {
     throw err;
   }
 
+  // Only a live ride can be completed, not a cancelled or expired one (LOC-18).
+  if (!["upcoming", "full", "ongoing"].includes(ride.status)) {
+    const err = new Error(`Cannot end a ${ride.status} ride`);
+    err.status = 400;
+    throw err;
+  }
+
   ride.status = "completed";
   ride.completedAt = new Date();
   await ride.save();

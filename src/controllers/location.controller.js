@@ -135,7 +135,11 @@ export const requestRide = async (req, res) => {
       requestedAt: rider?.requestedAt,
     });
 
-    return success(res, { ride: toRequesterView(ride, req.user.sub) }, "Ride request sent successfully");
+    return success(
+      res,
+      { ride: toRequesterView(ride, req.user.sub) },
+      "Ride request sent successfully",
+    );
   } catch (err) {
     logger.error("Request ride error:", {
       message: err.message,
@@ -219,7 +223,11 @@ export const cancelRiderRide = async (req, res) => {
       availableSeats: ride.availableSeats,
     });
 
-    return success(res, { ride: toRequesterView(ride, req.user.sub) }, "You have exited the ride successfully");
+    return success(
+      res,
+      { ride: toRequesterView(ride, req.user.sub) },
+      "You have exited the ride successfully",
+    );
   } catch (err) {
     logger.error("Cancel rider ride error:", {
       message: err.message,
@@ -320,7 +328,11 @@ export const riderRespondToInvite = async (req, res) => {
       action,
     });
 
-    return success(res, { ride: toRequesterView(ride, req.user.sub) }, `Invite ${action} successfully`);
+    return success(
+      res,
+      { ride: toRequesterView(ride, req.user.sub) },
+      `Invite ${action} successfully`,
+    );
   } catch (err) {
     logger.error("Rider respond to invite error:", {
       message: err.message,
@@ -341,11 +353,23 @@ export const cancelRide = async (req, res) => {
 
     const acceptedRiders = ride.riders.filter((r) => r.status === "accepted");
 
+    // People who only requested or were invited are told too (LOC-18).
+    const waitingRiderIds = ride.riders
+      .filter((r) => ["pending", "invited"].includes(r.status))
+      .map((r) => String(r.userId));
+
     await publishEvent("RIDE_CANCELLED", {
       rideId,
       driverName: getDisplayName(req.user),
       acceptedRiders,
-      ride: ride.toObject ? ride.toObject() : ride,
+      waitingRiderIds,
+      // Only what the notifications need, not the GPS trail or pickups.
+      ride: {
+        _id: ride._id,
+        from: ride.from,
+        to: ride.to,
+        departureTime: ride.departureTime,
+      },
     });
 
     return success(res, { ride }, "Ride cancelled successfully");
@@ -379,7 +403,11 @@ export const withdrawRequest = async (req, res) => {
       availableSeats: ride.availableSeats,
     });
 
-    return success(res, { ride: toRequesterView(ride, req.user.sub) }, "Request withdrawn successfully");
+    return success(
+      res,
+      { ride: toRequesterView(ride, req.user.sub) },
+      "Request withdrawn successfully",
+    );
   } catch (err) {
     logger.error("Withdraw request error:", {
       message: err.message,

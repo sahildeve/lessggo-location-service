@@ -447,7 +447,8 @@ export const startLocationSubscriber = (
 
         // 10. RIDE_CANCELLED
         if (eventType === "RIDE_CANCELLED") {
-          const { rideId, driverName, acceptedRiders, ride } = payload;
+          const { rideId, driverName, acceptedRiders, waitingRiderIds, ride } =
+            payload;
 
           await chatServiceClient.closeRideChat(
             rideId,
@@ -478,6 +479,24 @@ export const startLocationSubscriber = (
             });
 
             await sendRideCancelledEmail(r.userId, driverName, ride);
+          }
+
+          // Requesters and invitees are told too (LOC-18).
+          for (const waitingId of waitingRiderIds || []) {
+            io?.to(`user:${waitingId}`).emit("ride_cancelled", {
+              rideId,
+              driverName,
+              from: ride.from?.address,
+              to: ride.to?.address,
+              message: "A ride you asked to join has been cancelled",
+            });
+            await createNotification({
+              userId: waitingId,
+              type: "ride_cancelled",
+              title: "Ride Cancelled",
+              message: `${driverName} cancelled a ride you asked to join`,
+              data: { rideId, from: ride.from?.address, to: ride.to?.address },
+            });
           }
         }
 
@@ -530,7 +549,9 @@ export const startLocationSubscriber = (
 
         // 12. RIDE_ENDED
         if (eventType === "RIDE_ENDED") {
-          const { rideId, acceptedRiders } = payload;
+
+          // Close the ride chat like a cancel does (LOC-18).
+          await chatServiceClient.closeRideChat(rideId, "Ride has been completed");
 
           for (const r of acceptedRiders || []) {
             if (io) {
