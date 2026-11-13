@@ -5,6 +5,12 @@ import redis from "../config/redis.js";
 import logger from "../utils/logger.js";
 import SearchRequest from "../models/SearchRequest.js";
 import { getUsersByIds } from "../utils/authServiceClient.js";
+import {
+  setRideDriver,
+  addRideMember,
+  removeRideMember,
+  deleteRideMembership,
+} from "../utils/rideMembership.js";
 
 // ─── Save Pickup/Dropoff Location
 export const saveLocation = async (
@@ -74,10 +80,8 @@ export const offerRide = async (
     pricePerSeat,
   });
 
-  await redis.sadd(`ride_members:${ride._id}`, userId);
-  await redis.expire(`ride_members:${ride._id}`, 86400 * 7); // 7 days
-  // Gateway ke paas DB nahi — driver Redis se pata chale. ride_members ke saath expire
-  await redis.set(`ride_driver:${ride._id}`, String(userId), "EX", 86400 * 7);
+  // Driver is a member; keys live until the ride can no longer run (LOC-08).
+  await setRideDriver(ride._id, userId, ride.departureTime);
 
   // ── Interested users dhundo jinhone ye route search kiya tha
   const interestedUsers = await findInterestedUsers({
@@ -380,7 +384,7 @@ export const exitRide = async (rideId, userId) => {
   await ride.save();
 
   // Redis se bhi remove karo
-  await redis.srem(`ride_members:${rideId}`, userId);
+  await removeRideMember(rideId, userId);
 
   return ride;
 };
@@ -421,7 +425,7 @@ export const removeRider = async (rideId, riderId, driverUserId) => {
   await ride.save();
 
   // Redis se bhi remove karo
-  await redis.srem(`ride_members:${rideId}`, riderId);
+  await removeRideMember(rideId, riderId);
 
   return { ride, riderStatus };
 };
@@ -611,17 +615,7 @@ export const respondToRequest = async (
     );
     // Redis AFTER MongoDB (LOC-08): a Redis failure no longer leaves a
     // non-member in the set.
-    try {
-      await redis.sadd(`ride_members:${rideId}`, riderId);
-      await redis.expire(`ride_members:${rideId}`, 86400 * 7);
-      await redis.expire(`ride_driver:${rideId}`, 86400 * 7);
-    } catch (err) {
-      logger.error("ride_members add failed after accept", {
-        rideId,
-        riderId,
-        message: err.message,
-      });
-    }
+    await addRideMember(rideId, riderId, ride.departureTime);
   } else if (action === "rejected") {
     if (!["pending", "accepted"].includes(previousStatus)) {
       const err = new Error("This request can no longer be rejected");
@@ -644,7 +638,7 @@ export const respondToRequest = async (
         { _id: ride._id, status: "full" },
         { $set: { status: "upcoming" } },
       );
-      await redis.srem(`ride_members:${rideId}`, riderId);
+      await removeRideMember(rideId, riderId);
     }
   } else {
     const err = new Error("Invalid action");
@@ -710,9 +704,7 @@ export const riderRespondToInvite = async (rideId, userId, action) => {
 
   // Agar accept kiya toh Redis mein add karo
   if (action === "accepted") {
-    await redis.sadd(`ride_members:${rideId}`, userId);
-    await redis.expire(`ride_members:${rideId}`, 86400 * 7);
-    await redis.expire(`ride_driver:${rideId}`, 86400 * 7);
+    await addRideMember(rideId, userId, ride.departureTime);
 
     const acceptedCount = ride.riders.filter(
       (r) => r.status === "accepted",
@@ -847,7 +839,7 @@ export const endRide = async (rideId, userId) => {
   await ride.save();
 
   // Redis se members delete karo
-  await redis.del(`ride_members:${rideId}`, `ride_driver:${rideId}`);
+  await deleteRideMembership(rideId);
 
   return ride;
 };
@@ -876,7 +868,7 @@ export const cancelRide = async (rideId, userId) => {
   await ride.save();
 
   // Redis se members delete
-  await redis.del(`ride_members:${rideId}`, `ride_driver:${rideId}`);
+  await deleteRideMembership(rideId);
 
   return ride;
 };
@@ -908,7 +900,7 @@ export const withdrawRequest = async (rideId, userId) => {
     if (ride.status === "full") {
       ride.status = "upcoming";
     }
-    await redis.srem(`ride_members:${rideId}`, userId);
+    await removeRideMember(rideId, userId);
   }
 
   ride.riders.splice(riderIndex, 1);
